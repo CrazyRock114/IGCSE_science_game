@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FIELDWORK Round 1 verification</title>
+  <style>
+    :root { color-scheme: dark; font: 16px system-ui, sans-serif; background: #0b0f19; color: #e7f4ff; }
+    main { width: min(1100px, 95%); margin: 28px auto; }
+    button { padding: 9px 14px; font: inherit; border-radius: 7px; cursor: pointer; }
+    #test-host { overflow: auto; }
+    iframe { display: block; border: 0; margin-block: 12px; }
+    pre { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>FIELDWORK Round 1 verification</h1>
+    <p>Checks game controls and saved progress using isolated QA storage and independent game documents.</p>
+    <button id="start">Run Round 1 browser checks</button>
+    <p id="summary" role="status">Ready.</p>
+    <pre id="results"></pre>
+    <div id="test-host"></div>
+  </main>
+  <script type="module" src="/__qa/round1.js"></script>
+</body>
+</html>

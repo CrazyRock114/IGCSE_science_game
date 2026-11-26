@@ -3,6 +3,9 @@
 const objectives = (lastCore, descriptions) => descriptions.map((description, index) => [
   String(index + 1), index < lastCore ? 'Core' : 'Supplement', description,
 ]);
+const riderKineticEnergy = speed => 0.5 * 60 * speed ** 2;
+const liftPower = seconds => 1_200 / seconds;
+const floorPressure = areaCm2 => 200 / (areaCm2 / 10_000) / 1_000;
 const refractedAngle = degrees => Math.asin(Math.sin(degrees * Math.PI / 180) / 1.33) * 180 / Math.PI;
 const projectedImageDistance = objectDistance => 10 * objectDistance / (objectDistance - 10);
 
@@ -140,7 +143,8 @@ export const physics = [
     location: 'Skate park', scene: 'motion',
     brief: 'Change the speed of a 60 kg rider on a level section to estimate the energy the braking surface must dissipate.',
     variable: 'Rider speed', unit: 'm/s', range: [0, 8, 4],
-    metric: 'Kinetic energy', metricUnit: 'J', samples: [0, 120, 480, 1080, 1920],
+    metric: 'Kinetic energy', metricUnit: 'J', samples: [0, 2, 4, 6, 8].map(riderKineticEnergy),
+    readingDecimals: 2, calculate: riderKineticEnergy,
     insight: 'Doubling speed quadruples kinetic energy. On a real run, energy moves from the gravitational store into kinetic and thermal stores and leaves as sound.',
     challenge: {prompt: 'What happens to the rider’s kinetic energy from 2 to 4 m/s?', options: ['It doubles', 'It quadruples', 'It is halved'], answer: 1, explanation: 'Kinetic energy depends on the square of speed, so 480 J is four times 120 J.'},
     links: ['P1.6.2', 'B12', 'C5'],
@@ -190,7 +194,8 @@ export const physics = [
     location: 'Apartment service lift', scene: 'motion',
     brief: 'Compare lift motors that each do 1200 J of useful work during a test. Change the time they take to lift the same crate the same distance.',
     variable: 'Time for one lift', unit: 's', range: [2, 10, 6],
-    metric: 'Useful mechanical power', metricUnit: 'W', samples: [600, 300, 200, 150, 120],
+    metric: 'Useful mechanical power', metricUnit: 'W', samples: [2, 4, 6, 8, 10].map(liftPower),
+    readingDecimals: 2, calculate: liftPower,
     insight: 'A faster lift does the same work in less time and therefore produces more average power. The model compares useful output alone.',
     challenge: {prompt: 'Which test needs 300 W of useful mechanical power?', options: ['A 2 s lift', 'A 4 s lift', 'An 8 s lift'], answer: 1, explanation: 'A 4 s lift transfers 1200 J ÷ 4 s = 300 W.'},
     links: ['P1.6.2', 'P4.2.5'],
@@ -202,8 +207,9 @@ export const physics = [
     id: 'P1.7', title: 'Pressure', quest: 'Choose feet for the pop-up stall',
     location: 'Market plaza', scene: 'materials',
     brief: 'A 200 N load is denting a soft floor. Try support pads with different total contact areas to reduce pressure.',
-    variable: 'Total contact area', unit: 'cm²', range: [20, 100, 60],
-    metric: 'Pressure on floor', metricUnit: 'kPa', samples: [100, 50, 33.33, 25, 20],
+    variable: 'Total contact area', unit: 'cm²', range: [20, 100, 60], step: 0.2,
+    metric: 'Pressure on floor', metricUnit: 'kPa', samples: [20, 40, 60, 80, 100].map(floorPressure),
+    readingDecimals: 2, calculate: floorPressure,
     insight: 'The same load produces less pressure when spread over a larger area. Convert square centimetres to square metres for a reading in pascals.',
     challenge: {prompt: 'Which tested contact area keeps the pressure to 25 kPa or less?', options: ['40 cm²', '60 cm²', '80 cm²'], answer: 2, explanation: '200 N over 0.008 m² gives 25,000 Pa, or 25 kPa.'},
     links: ['P2.1.3', 'B9'],

@@ -3,40 +3,42 @@ import { getObjective, objectiveHref, objectiveXp } from './objective-game.js';
 import { showObjective } from './objective-view.js';
 import { clean } from './html.js';
 import { icon } from './icons.js';
-import { capstoneIds, capstoneQuestions, featuredId, fieldSkills, getMission, hasComparison, investigations, matches, sampleAt, subjects, syllabus } from './game.js';
+import { createProgressStore, isProgressKey } from './progress-store.js';
+import { capstoneIds, capstoneQuestions, checkMissionConclusion, featuredId, fieldSkills, getMission, hasComparison, investigations, matches, sampleAt, subjects, syllabus } from './game.js';
 
 const main = document.querySelector('#main');
 const navigation = document.querySelector('#navigation');
 const tools = document.querySelector('#header-tools');
 const settings = document.querySelector('#settings');
-const storeKey = 'fieldwork-expedition-v1';
 const number = new Intl.NumberFormat('en', { maximumFractionDigits: 4 });
+const metricNumber = new Intl.NumberFormat('en', { maximumFractionDigits: 2 });
 const systemMotion = matchMedia('(prefers-reduced-motion: reduce)');
-let store = loadStore();
+const saveStatus = document.querySelector('#save-status');
+const persistence = createProgressStore(() => localStorage, failed => {
+  saveStatus.hidden = !failed;
+  saveStatus.textContent = failed ? 'Progress could not be saved. Unsaved changes are available until this page is closed or refreshed.' : '';
+});
+let store;
 let disposeScene;
+let refreshLab;
 let routeToken = 0;
 let audioContext;
 
-function loadStore() {
-  const empty = { trials: {}, done: {}, prefs: {}, objectiveProgress: {}, capstone: false, last: null, lastObjective: null };
-  try {
-    const saved = JSON.parse(localStorage.getItem(storeKey));
-    return { ...empty, ...saved, trials: saved?.trials ?? {}, done: saved?.done ?? {}, prefs: saved?.prefs ?? {}, objectiveProgress: saved?.objectiveProgress ?? {} };
-  } catch {
-    return empty;
-  }
+function save(change) {
+  store = persistence.write(change);
 }
 
-function save() {
-  try {
-    localStorage.setItem(storeKey, JSON.stringify(store));
-  } catch {
-    announce('Browser storage is unavailable. Progress is kept for this session.');
-  }
+function formatReading(mission, value) {
+  return (mission.readingDecimals === 2 ? metricNumber : number).format(value);
 }
 
-function announce(message) {
-  document.querySelector('#announcer').textContent = message;
+function missionReadings(mission) {
+  const trials = store.trials[mission.id] ?? [];
+  // Inputs are the original evidence. Recalculate historic deterministic readings
+  // so a corrected model uses one result for the meter, record and plot.
+  return mission.calculate ? trials.map(trial => ({
+    ...trial, output: sampleAt(mission, trial.input)
+  })) : trials;
 }
 
 function sName(id) {
@@ -106,8 +108,7 @@ function openSettings() {
       <input type="checkbox" name="motion" ${motionReduced() ? 'checked' : ''}></label>
   </form>`;
   settings.querySelector('form').addEventListener('change', event => {
-    store.prefs[event.target.name] = event.target.checked;
-    save();
+    save({ type: 'preference', name: event.target.name, value: event.target.checked });
   });
   settings.showModal();
 }
@@ -290,15 +291,11 @@ function connectionContext(mission) {
 }
 
 function lab(mission, token, initialContext) {
-  if (store.last !== mission.id) {
-    store.last = mission.id;
-    save();
-  }
+  if (store.last !== mission.id) save({ type: 'visit', mission: mission.id });
   const [min, max, initial] = mission.range;
-  const trials = store.trials[mission.id] ?? [];
   const step = mission.step ?? (max - min) / 100;
   const solution = mission.challenge;
-  let value = trials.at(-1)?.input ?? initial;
+  let value = missionReadings(mission).at(-1)?.input ?? initial;
   let selected = null;
   let scene;
 
@@ -337,7 +334,8 @@ function lab(mission, token, initialContext) {
       <aside class="lab-sidebar" aria-label="Mission evidence">
         <section class="panel panel-body">
           <div class="panel-heading">${icon('chart')}<h2>Field readings</h2></div>
-          <p>Record a baseline. Change ${clean(mission.variable.toLowerCase())} and record a second reading to compare the results.</p>
+          <p>${clean(mission.evidence?.instructions
+            ?? `Record a baseline. Change ${mission.variable.toLowerCase()} and record a second reading to compare the results.`)}</p>
           <div class="button-row"><button class="button primary" id="record" type="button">${icon('target')} Record reading</button></div>
           <div id="readings" aria-live="polite"></div>
         </section>
@@ -356,13 +354,14 @@ function lab(mission, token, initialContext) {
     const measured = sampleAt(mission, value);
     dom['condition-value'].textContent = `${number.format(value)} ${mission.unit}`.trim();
     dom.condition.setAttribute('aria-valuetext', dom['condition-value'].textContent);
-    dom['metric-value'].innerHTML = `${number.format(measured)} <small>${clean(mission.metricUnit)}</small>`;
+    dom['metric-value'].innerHTML = `${formatReading(mission, measured)} <small>${clean(mission.metricUnit)}</small>`;
     const low = Math.min(...mission.samples);
     const high = Math.max(...mission.samples);
     scene?.setReading((value - min) / (max - min), high === low ? .5 : (measured - low) / (high - low));
   };
 
   function updateReadings() {
+    const trials = missionReadings(mission);
     if (!trials.length) {
       dom.readings.innerHTML = '<p class="muted">No readings recorded.</p>';
       return;
@@ -371,7 +370,7 @@ function lab(mission, token, initialContext) {
     dom.readings.innerHTML = `<table class="trials"><caption class="sr-only">Recorded readings</caption><thead><tr>
       <th scope="col">${clean(mission.variable)}${mission.unit ? ' (' + clean(mission.unit) + ')' : ''}</th>
       <th scope="col">${clean(mission.metric)}${mission.metricUnit ? ' (' + clean(mission.metricUnit) + ')' : ''}</th>
-    </tr></thead><tbody>${windowed.map(trial => `<tr><td>${number.format(trial.input)}</td><td>${number.format(trial.output)}</td></tr>`).join('')}</tbody></table>
+    </tr></thead><tbody>${windowed.map(trial => `<tr><td>${number.format(trial.input)}</td><td>${formatReading(mission, trial.output)}</td></tr>`).join('')}</tbody></table>
     ${trials.length > windowed.length ? `<p>Showing the last ${windowed.length} of ${trials.length} readings.</p>` : ''}
     ${hasComparison(trials) ? '<canvas class="chart" height="120" width="420" aria-label="Plot of recorded readings" role="img"></canvas>' : ''}`;
     const chart = dom.readings.querySelector('.chart');
@@ -400,10 +399,10 @@ function lab(mission, token, initialContext) {
   });
 
   main.querySelector('#record').addEventListener('click', () => {
-    if (trials.length >= 100) trials.shift();
-    trials.push({ input: value, output: sampleAt(mission, value) });
-    store.trials[mission.id] = trials;
-    save();
+    save({
+      type: 'reading', mission: mission.id,
+      reading: { input: value, output: sampleAt(mission, value) }
+    });
     updateReadings();
   });
 
@@ -416,21 +415,15 @@ function lab(mission, token, initialContext) {
     dom.feedback.textContent = '';
   }));
   dom.submit.addEventListener('click', () => {
-    if (!hasComparison(trials)) {
-      feedback('Record readings at two different settings before checking your conclusion.');
+    if (store.done[mission.id]) return;
+    const result = checkMissionConclusion(mission, missionReadings(mission), selected);
+    if (result.status !== 'correct') {
+      const incorrect = result.status === 'incorrect';
+      if (incorrect) choices[selected].classList.add('incorrect');
+      feedback(result.message, incorrect);
       return;
     }
-    if (selected === null) {
-      feedback('Choose a conclusion based on your evidence.');
-      return;
-    }
-    if (selected !== solution.answer) {
-      choices[selected].classList.add('incorrect');
-      feedback('Review how the reading changed and check the field briefing before trying again.', true);
-      return;
-    }
-    store.done[mission.id] = true;
-    save();
+    save({ type: 'complete', mission: mission.id });
     updateRank();
     done();
     xpSound();
@@ -452,6 +445,10 @@ function lab(mission, token, initialContext) {
   conditionValue();
   updateReadings();
   if (store.done[mission.id]) done();
+  refreshLab = previous => {
+    if (JSON.stringify(previous.trials[mission.id]) !== JSON.stringify(store.trials[mission.id])) updateReadings();
+    if (store.done[mission.id] && !dom.submit.disabled) done();
+  };
 
   main.querySelector('#reset-view').addEventListener('click', () => scene?.resetCamera());
   import('./lab-scene.js').then(({ createLabScene }) => {
@@ -490,8 +487,8 @@ function plot(canvas, trials, mission, accent) {
   context.fillText(number.format(minX), left, height - 8);
   context.textAlign = 'right';
   context.fillText(number.format(maxX), right, height - 8);
-  context.fillText(number.format(maxY), left - 5, top + 4);
-  context.fillText(number.format(minY), left - 5, bottom + 4);
+  context.fillText(formatReading(mission, maxY), left - 5, top + 4);
+  context.fillText(formatReading(mission, minY), left - 5, bottom + 4);
   const points = [...trials].sort((a, b) => a.input - b.input);
   context.beginPath();
   points.forEach((trial, index) => {
@@ -573,8 +570,7 @@ function capstone() {
       return;
     }
     if (!store.capstone) {
-      store.capstone = true;
-      save();
+      save({ type: 'capstone' });
       updateRank();
       xpSound();
     }
@@ -588,6 +584,8 @@ function render() {
     ? requested : 'expedition';
   disposeScene?.();
   disposeScene = null;
+  refreshLab = null;
+  store = persistence.refresh();
   const token = ++routeToken;
   header(page === 'capstone' ? 'connections' : page);
   if (page === 'objective') {
@@ -597,9 +595,7 @@ function render() {
         isCurrent: () => token === routeToken,
         motionReduced,
         onProgress(progress, completed) {
-          store.objectiveProgress[objective.key] = progress;
-          store.lastObjective = objective.key;
-          save();
+          save({ type: 'objective', key: objective.key, progress });
           if (completed) {
             updateRank();
             xpSound();
@@ -631,6 +627,13 @@ function render() {
 document.querySelector('.skip-link').addEventListener('click', event => {
   event.preventDefault();
   main.focus();
+});
+window.addEventListener('storage', event => {
+  if (!isProgressKey(event.key) || event.storageArea !== localStorage) return;
+  const previous = store;
+  store = persistence.refresh();
+  updateRank();
+  refreshLab?.(previous);
 });
 window.addEventListener('hashchange', render);
 render();

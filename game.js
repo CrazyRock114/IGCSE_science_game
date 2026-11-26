@@ -71,6 +71,40 @@ export function hasComparison(trials = []) {
   return new Set(trials.map(trial => trial.input)).size >= 2;
 }
 
+function missionEvidenceIssue(mission, trials) {
+  const plateauStart = mission.evidence?.plateauStart;
+  if (plateauStart === undefined) {
+    return hasComparison(trials) ? '' : 'Record readings at two different settings before checking your conclusion.';
+  }
+
+  const [min, max] = mission.range;
+  const plateauOutput = sampleAt(mission, plateauStart);
+  const readings = trials.filter(({ input, output }) =>
+    Number.isFinite(input) && input >= min && input <= max && output === sampleAt(mission, input)
+  );
+  const missing = [];
+  if (!readings.some(({ input, output }) => input < plateauStart && output < plateauOutput)) {
+    missing.push('Record a lower setting that gives a lower output.');
+  }
+  if (!readings.some(({ input }) => input === plateauStart)) {
+    missing.push('Record a reading at the start of the plateau.');
+  }
+  if (!readings.some(({ input, output }) => input > plateauStart && output === plateauOutput)) {
+    missing.push('Record a higher setting with the same output to confirm the plateau.');
+  }
+  return missing.join(' ');
+}
+
+export function checkMissionConclusion(mission, trials, selected) {
+  const issue = missionEvidenceIssue(mission, trials);
+  if (issue) return { status: 'needs-evidence', message: issue };
+  if (selected === null) return { status: 'needs-choice', message: 'Choose a conclusion based on your evidence.' };
+  if (selected !== mission.challenge.answer) {
+    return { status: 'incorrect', message: 'Review how the reading changed and check the field briefing before trying again.' };
+  }
+  return { status: 'correct' };
+}
+
 export function getMission(missions, id) {
   return missions.find(mission => mission.id === id)
     ?? missions.find(mission => mission.id.startsWith(id + '.'));

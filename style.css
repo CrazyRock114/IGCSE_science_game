@@ -403,3 +403,15 @@ input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent, var(--
   .apparatus-control { padding-inline: 9px; }
   .apparatus-result { padding-inline: 9px; align-items: stretch; flex-wrap: wrap; }
 }
+
+.save-status {
+  position: fixed;
+  z-index: 10;
+  inset: auto 0 16px;
+  margin-block: 0;
+  padding: 10px 12px;
+  background: #301f28;
+  border: 1px solid #a55f68;
+  border-radius: 7px;
+  color: #ffd5d9;
+}

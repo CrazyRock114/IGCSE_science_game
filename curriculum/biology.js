@@ -113,7 +113,8 @@ export const biology = [
     id: 'B6.1', title: 'Photosynthesis', quest: 'Power the greenhouse', location: 'Rooftop greenhouse',
     brief: 'The school greenhouse has a limited electricity budget. Aim the lamp at an aquatic plant and compare oxygen bubbles per minute at several light levels. Find the lowest tested setting that reaches the output plateau.',
     scene: 'plants', variable: 'Lamp intensity', unit: '%', range: [0, 100, 50], metric: 'Oxygen bubble rate', metricUnit: 'bubbles/min', samples: [0, 5, 12, 18, 18],
-    insight: 'Chlorophyll captures light energy to help produce sugars from carbon dioxide and water, releasing oxygen. In this trial the rate stops rising at 75% lamp intensity. Carbon dioxide or temperature may then limit the rate. Bubble count estimates gas output because individual bubble volumes vary.',
+    insight: 'Chlorophyll captures light energy to help produce sugars from carbon dioxide and water, releasing oxygen. Hold temperature and carbon dioxide constant as you change the lamp intensity. Use bubble counts to estimate oxygen output, then look for a range where more light no longer increases the rate.',
+    evidence: { plateauStart: 75, instructions: 'Record a lower-output setting, the first setting that reaches maximum output, and a higher setting to check that the output stays the same.' },
     challenge: { prompt: 'Which tested setting reaches maximum output while using the least lamp power?', options: ['50% intensity', '75% intensity', '100% intensity'], answer: 1, explanation: '75% and 100% both yield 18 bubbles/min. The lower setting reaches the plateau without the extra electricity input.' },
     links: ['C10.2', 'P1.7', 'B18.1'],
     objectives: [

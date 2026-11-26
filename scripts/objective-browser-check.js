@@ -1,5 +1,6 @@
 import { objectiveCatalog } from '/objective-catalog.js';
 import { objectiveHref } from '/objective-game.js';
+import { isProgressKey, readProgress } from '/progress-store.js';
 
 const summary = document.querySelector('#summary');
 const results = document.querySelector('#results');
@@ -40,8 +41,7 @@ async function run(frame) {
   let testedSetups = 0;
   let runtimeError;
   const failures = [];
-  const storageKey = 'fieldwork-expedition-v1';
-  game.localStorage.removeItem(storageKey);
+  for (const key of Object.keys(game.localStorage).filter(isProgressKey)) game.localStorage.removeItem(key);
   // Start with an empty in-memory save, on the separate QA server origin.
   await reload();
   await waitFor(() => find('.journal-list') && find('.journal-metrics').textContent.includes('0 / 650'), 'empty journal');
@@ -108,7 +108,7 @@ async function run(frame) {
       objective.answer.forEach(index => choice(index).click());
       submit.click();
       check(submit.disabled && root.querySelector('#objective-feedback .objective-complete'), 'Correct evidence did not complete the objective');
-      const save = JSON.parse(game.localStorage.getItem(storageKey));
+      const save = readProgress(game.localStorage);
       check(save?.objectiveProgress?.[key]?.done && save.objectiveProgress[key].runs.length === objective.cases.length, 'Completion or readings were not saved');
       verified += 1;
     } catch (error) {
