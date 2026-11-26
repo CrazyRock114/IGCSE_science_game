@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b0f19">
+  <meta name="description" content="Investigate a living valley in FIELDWORK, a 3D science expedition for Cambridge IGCSE Co-ordinated Sciences.">
+  <title>FIELDWORK | Science Expedition</title>
+  <link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+  <link rel="preload" href="assets/outpost.webp" as="image">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script>
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#expedition" aria-label="Fieldwork expedition">
+        <img src="assets/mark.svg" alt="" width="36" height="36">
+        <span><strong>FIELDWORK</strong><small>SCIENCE EXPEDITION</small></span>
+      </a>
+      <nav id="navigation" aria-label="Primary navigation"></nav>
+      <div class="header-tools" id="header-tools"></div>
+    </div>
+  </header>
+  <main id="main" class="shell" tabindex="-1"></main>
+  <footer class="footer"><div class="shell footer-inner"><span>FIELDWORK</span><a href="#journal">Cambridge IGCSE 0654 · 2025–2027</a><span>Progress saved in this browser</span></div></footer>
+  <dialog id="settings" aria-labelledby="settings-heading"></dialog>
+  <div class="sr-only" id="announcer" aria-live="polite"></div>
+</body>
+</html>

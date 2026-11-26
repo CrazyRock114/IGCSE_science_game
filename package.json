@@ -1,0 +1,14 @@
+{
+  "name": "fieldwork-science-expedition",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A browser-based Cambridge IGCSE 0654 science adventure",
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "build": "node scripts/build.mjs",
+    "preview": "node scripts/serve.mjs --dist",
+    "check": "node scripts/check.mjs && node scripts/check-objectives.mjs"
+  },
+  "dependencies": { "three": "0.180.0" }
+}
