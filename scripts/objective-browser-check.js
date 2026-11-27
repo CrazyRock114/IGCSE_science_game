@@ -1,6 +1,7 @@
 import { objectiveCatalog } from '/objective-catalog.js';
 import { objectiveHref } from '/objective-game.js';
 import { isProgressKey, readProgress } from '/progress-store.js';
+import { playPractical, practicalKeys } from '/__qa/round2.js';
 
 const summary = document.querySelector('#summary');
 const results = document.querySelector('#results');
@@ -64,6 +65,14 @@ async function run(frame) {
       check(canvas?.width > 0 && canvas.height > 0 && gl && !gl.isContextLost(), 'No live WebGL 2 canvas');
       check(gl.getError() === gl.NO_ERROR, 'WebGL error in first frame');
 
+      if (practicalKeys.includes(key)) {
+        await playPractical(frame, key);
+        await new Promise(resolve => game.requestAnimationFrame(resolve));
+        check(!runtimeError && !gl.isContextLost() && gl.getError() === gl.NO_ERROR, runtimeError || 'WebGL error in practical');
+        verified += 1;
+        continue;
+      }
+
       const control = root.querySelector('#objective-setup');
       const apparatus = root.querySelector('#apparatus-position');
       const runTrial = root.querySelector('#run-objective');
@@ -123,7 +132,7 @@ async function run(frame) {
   await waitFor(() => find('.journal-metrics')?.textContent.includes(verified + ' / 650'), 'persisted completion total after reload');
   summary.textContent = failures.length
     ? `Failed · ${verified}/650 verified · ${failures.length} failures`
-    : `Passed · 650/650 objective experiments verified and saved · ${testedSetups} setups tested`;
+    : `Passed · 650/650 objective experiments verified and saved · ${testedSetups} reference setups and ${practicalKeys.length} practical routes tested`;
   results.dataset.pass = String(failures.length === 0);
 }
 

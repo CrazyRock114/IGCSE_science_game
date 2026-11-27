@@ -1,0 +1,53 @@
+.titration-practical,
+.titration-practical section,
+.titration-setup {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.titration-practical section + section { margin-top: 10px; padding-top: 15px; border-top: 1px solid #31445a; }
+.titration-practical .objective-select { width: 100%; }
+.titration-practical input.objective-select { padding-inline-end: 10px; background-image: none; cursor: text; }
+.titration-practical label { display: grid; gap: 5px; }
+.titration-practical button { width: fit-content; }
+.titration-guide { border-left: 2px solid var(--accent, var(--mint)); padding-left: 10px; }
+.titration-setup { margin: 0; padding: 10px; border: 1px solid #31445a; border-radius: 8px; }
+.titration-setup legend { padding-inline: 5px; }
+.titration-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.titration-scales, .titration-entries { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.titration-scale {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 9px;
+  border: 1px solid #31445a;
+  border-radius: 7px;
+  background: #0e1826;
+}
+.titration-scale figcaption { font-weight: 700; }
+.titration-scale > p { min-height: 2.5em; font-size: .8rem; }
+.titration-scale-body { position: relative; height: 80px; margin: .5rem 0; }
+.titration-tube { position: absolute; left: 0; width: 18px; inset-block: 0; border-inline: 1px solid #769bad; background: #172d3e; }
+.titration-tube span {
+  position: absolute;
+  inset: var(--meniscus) 0 0;
+  background: #426e86;
+}
+.titration-tube span::before {
+  content: '';
+  position: absolute;
+  inset: -6px 0 auto;
+  height: 6px;
+  border-bottom: 2px solid #bceef0;
+  border-radius: 0 0 50% 50%;
+}
+.titration-ticks { position: absolute; inset: 0 auto 0 17px; display: flex; flex-direction: column; justify-content: space-between; margin: 0; padding: 0; list-style: none; font: .72rem var(--mono); }
+.titration-ticks li { position: relative; height: 0; padding-left: 14px; line-height: 1; }
+.titration-ticks li span { display: block; transform: translateY(-50%); }
+.titration-ticks li::before { content: ''; position: absolute; left: 0; top: 0; width: 9px; border-bottom: 1px solid #a4bacc; }
+.titration-appearance { display: flex; gap: 8px; align-items: baseline; }
+.titration-appearance span { flex: none; width: .8em; height: .8em; border-radius: 50%; background: var(--flask-colour); }
+.titration-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.titration-table th, .titration-table td { padding: 6px 4px; border-bottom: 1px solid #31445a; text-align: start; }
+.titration-table small { display: block; color: #b2c4d5; font-weight: 400; }
+.titration-table input { width: 1.1rem; height: 1.1rem; margin: 0; accent-color: var(--accent, var(--mint)); }

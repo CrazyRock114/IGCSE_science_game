@@ -8,7 +8,7 @@
     "dev": "node scripts/serve.mjs",
     "build": "node scripts/build.mjs",
     "preview": "node scripts/serve.mjs --dist",
-    "check": "node scripts/check.mjs && node scripts/check-objectives.mjs && node scripts/check-round1-physics.mjs && node scripts/check-round1-evidence.mjs && node scripts/check-round1-progress.mjs"
+    "check": "node scripts/check.mjs && node scripts/check-objectives.mjs && node scripts/check-round1-physics.mjs && node scripts/check-round1-evidence.mjs && node scripts/check-round1-progress.mjs && node scripts/check-round2-photosynthesis.mjs && node scripts/check-round2-motion.mjs && node scripts/check-round2-titration.mjs && node scripts/check-round3-capstone.mjs && node scripts/check-round3-progress.mjs"
   },
   "dependencies": { "three": "0.180.0" }
 }

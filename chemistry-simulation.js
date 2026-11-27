@@ -139,7 +139,11 @@ function conicalFlask(k, x, bottom, z, fluidMaterial) {
 
 const endDose = [24.98, 25.006, 25.35];
 
-function titrationState(objective, index, position) {
+function titrationState(objective, index, position, practical) {
+  if (practical) {
+    const { initial, delivered, acidM, baseM, swirled } = practical;
+    return { initial, delivered, aliquot: 25, ph: titrationPH(25, delivered, acidM, baseM), endpointLab: true, swirled };
+  }
   const endpointLab = objective.key === 'C12.2/2';
   const p = clamp(position);
   const unknown = !endpointLab && index === 1;
@@ -199,27 +203,28 @@ function titration(k, objective) {
   const indicator = readout(k,1.05,.62,.77,.17,'Indicator');
 
   const droplets = Array.from({length:4}, () => k.sphere(.021,x,.82,z,titrant));
-  let previousPosition = 0;
+  let previousDose = 0;
   let lastAdjust = -10;
   const streak = k.sphere(.063,x,.58,z+.015,glass(0xed76b5,.56));
   streak.scale.set(.55,2.5,.55);
   return (s,t,motion) => {
     const position = s.apparatus ?? motion;
-    if (position > previousPosition + .00001) lastAdjust = t;
-    else if (position < previousPosition || t < lastAdjust) lastAdjust = -10;
-    previousPosition = position;
-    const state = titrationState(objective,s.index,position);
-    const { delivered, aliquot, unknown, ph, endpointLab } = state;
+    const practical = s.practical?.titration;
+    const state = titrationState(objective,s.index,position,practical);
+    const { initial = 0, delivered, aliquot, unknown, ph, endpointLab, swirled } = state;
+    if (delivered > previousDose + .00001) lastAdjust = t;
+    else if (delivered < previousDose || t < lastAdjust) lastAdjust = -10;
+    previousDose = delivered;
     const phOfLocalStreak = ph + Math.max(0, 10 - ph) * .8;
     const mismatched = !endpointLab && s.index === 2;
-    solution.color.copy(indicatorTint(ph,endpointLab,mismatched));
+    solution.color.copy(indicatorTint(practical && !swirled ? 7 : ph,endpointLab,mismatched));
     const liquidTop = fill(aliquot + delivered);
-    updateReservoir(tubeLength * (1 - delivered / 50));
+    updateReservoir(tubeLength * (1 - (initial + delivered) / 50));
     stopcock.rotation.z = -Math.PI / 2 * (s.apparatus ?? motion);
     pipette.visible = bulb.visible = !unknown;
     pipetteCaption(unknown ? 'Unmarked beaker' : '25.00 mL pipette');
-    instrument(fixed(delivered, endpointLab ? 3 : 2) + ' mL');
-    meter('pH ' + fixed(ph,2));
+    instrument(practical ? 'Read meniscus' : fixed(delivered, endpointLab ? 3 : 2) + ' mL');
+    meter(practical ? swirled ? 'Swirled' : delivered > 0 ? 'Unmixed' : 'Ready' : 'pH ' + fixed(ph,2));
     indicator(endpointLab ? 'Phenolphthalein' : mismatched ? 'Thymol blue' : 'Bromothymol blue');
     const dripping = delivered > 0 && (t - lastAdjust < .65 || (s.running && t < 1.3));
     droplets.forEach((drop,index) => {
@@ -228,7 +233,7 @@ function titration(k, objective) {
       drop.position.set(x,.83 + (liquidTop - .83) * (phase ** 1.65),z);
     });
     const mixing = 1 - (t * 1.15 % 1);
-    streak.visible = dripping && endpointLab && ph < 8.2 && phOfLocalStreak >= 8.2;
+    streak.visible = dripping && endpointLab && (practical ? !swirled : ph < 8.2) && phOfLocalStreak >= 8.2;
     streak.position.y = liquidTop - .05 - (1 - mixing) * .07;
     streak.material.opacity = .51 * mixing;
     streak.scale.set(.6 + (1 - mixing) * 1.2, 1.65 * mixing + .22, .55);

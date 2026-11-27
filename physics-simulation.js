@@ -1,4 +1,5 @@
 import { Vector3 } from 'three';
+import { motionSample } from './practical-motion.js';
 
 const DEG = Math.PI / 180;
 const UP = new Vector3(0, 1, 0);
@@ -59,7 +60,7 @@ export function createPhysicsSimulation(kit, objective) {
   if (!descriptor) return null;
   const [build, calculate] = descriptor;
   const update = build(kit);
-  return (signals, time) => update(calculate(signals.index, norm(signals.apparatus)), signals.running ? time : 0);
+  return (signals, time) => update(calculate(signals.index, norm(signals.apparatus), signals.practical), signals.running ? time : 0);
 }
 
 export function physicsSimulationControl(objective) {
@@ -132,7 +133,7 @@ function pendulum(k) {
 }
 
 function cartState(n) {
-  return (i, p) => {
+  return (i, p, practical) => {
     let t, d, v, span, a;
     let direction = 1;
     let supplement = '';
@@ -159,10 +160,13 @@ function cartState(n) {
         elapsed -= dt;
       }
     } else if (n === 6) {
-      span = 12; t = 4 * p; d = 2 + 2.5 * t; v = 2.5;
-      supplement = i === 1 && p > 0 ? ` · Reading from origin ${f(d / t, 'm/s')}` : '';
+      span = 12;
+      ({ time: t, distance: d, speed: v } = motionSample(n, p, practical?.guided ?? true));
+      supplement = !practical && i === 1 && p > 0 ? ` · Reading from origin ${f(d / t, 'm/s')}` : '';
     } else if (n === 7) {
-      span = 16; t = 8 * p; a = .5; v = a * t; d = .5 * a * t ** 2;
+      const guided = practical?.guided ?? true;
+      span = motionSample(n, 1, guided).distance;
+      ({ time: t, distance: d, speed: v, acceleration: a } = motionSample(n, p, guided));
     } else if (n === 9) {
       span = 8; t = 4 * p; a = i === 0 ? .5 : -.5; const v0 = i === 0 ? 1 : 3;
       v = v0 + a * t; d = v0 * t + .5 * a * t ** 2;

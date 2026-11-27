@@ -18,6 +18,28 @@ function parse(value) {
   }
 }
 
+const draftObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+export function practicalDraftChanges(previous, current) {
+  return Object.fromEntries(Object.entries(current).flatMap(([key, value]) => {
+    const old = previous?.[key];
+    if (value === old) return [];
+    if (draftObject(value) && draftObject(old)) {
+      const changes = practicalDraftChanges(old, value);
+      return Object.keys(changes).length ? [[key, changes]] : [];
+    }
+    return [[key, value]];
+  }));
+}
+
+export function applyPracticalDraft(previous, changes) {
+  const draft = { ...previous };
+  for (const [key, value] of Object.entries(changes)) {
+    draft[key] = draftObject(value) && draftObject(draft[key]) ? applyPracticalDraft(draft[key], value) : value;
+  }
+  return draft;
+}
+
 function applyChange(progress, change) {
   switch (change?.type) {
     case 'reading': {
@@ -37,13 +59,24 @@ function applyChange(progress, change) {
       break;
     case 'objective': {
       const old = progress.objectiveProgress[change.key];
-      progress.objectiveProgress[change.key] = {
-        runs: [...new Set([...(old?.runs ?? []), ...change.progress.runs])],
+      const next = {
+        ...old,
+        runs: [...new Set([...(old?.runs ?? []), ...(change.progress.runs ?? [])])],
         done: Boolean(old?.done || change.progress.done)
       };
+      if (change.progress.practical) {
+        const { mode, draft } = change.progress.practical;
+        const drafts = { ...old?.practical?.drafts };
+        if (draft !== undefined) drafts[mode] = applyPracticalDraft(drafts[mode], draft);
+        next.practical = { mode, drafts };
+      }
+      progress.objectiveProgress[change.key] = next;
       progress.lastObjective = change.key;
       break;
     }
+    case 'capstone-draft':
+      progress.capstoneDraft = { ...progress.capstoneDraft, [change.field]: change.value };
+      break;
     case 'capstone':
       progress.capstone = true;
       break;

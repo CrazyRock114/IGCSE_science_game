@@ -7,26 +7,6 @@ export const subjects = [
 export const syllabus = 'https://www.cambridgeinternational.org/Images/664572-2025-2027-syllabus.pdf';
 export const featuredId = 'B6.1';
 export const capstoneIds = ['B19.1', 'C10.1', 'P4.2.5'];
-export const capstoneQuestions = [
-  {
-    subject: 'biology', name: 'The watershed',
-    prompt: 'What should the team do upstream to keep more sediment out of the reservoir over the long term?',
-    options: ['Replant native vegetation and retain a buffer along the banks.', 'Clear the riverbanks to let stormwater travel to the reservoir faster.', 'Move the intake closer to the mouth of a muddy tributary.'],
-    answer: 0
-  },
-  {
-    subject: 'chemistry', name: 'The filter bed',
-    prompt: 'Two filter beds pass the same volume per hour. Which provides the better first treatment for suspended mud?',
-    options: ['The bed with the highest turbidity downstream.', 'The bed with the lowest turbidity downstream.', 'The bed whose incoming water has the highest salt content.'],
-    answer: 1
-  },
-  {
-    subject: 'physics', name: 'The power supply',
-    prompt: 'The pump draws 250 W and must run for four hours. The existing bank delivers 0.75 kWh. What is the smallest increase in usable capacity for that shift?',
-    options: ['No increase is needed.', 'Add 1.00 kWh.', 'Add 0.25 kWh.'],
-    answer: 2
-  }
-];
 
 export const investigations = [
   {

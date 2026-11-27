@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FIELDWORK Round 2 verification</title>
+  <style>
+    :root { color-scheme: dark; font: 16px system-ui, sans-serif; background: #0b0f19; color: #e7f4ff; }
+    main { width: min(1180px, 95%); margin: 28px auto; }
+    button { padding: 9px 14px; font: inherit; border-radius: 7px; cursor: pointer; }
+    iframe { display: block; border: 0; margin-block: 12px; }
+    #test-host { overflow: auto; }
+    pre { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Round 2 practicals</h1>
+    <p>Tests the practicals in a separate QA save.</p>
+    <button id="start" data-round2>Run Round 2 browser checks</button>
+    <p id="summary" role="status">Ready.</p>
+    <pre id="results"></pre>
+    <div id="test-host"></div>
+  </main>
+  <script type="module" src="/__qa/round2.js"></script>
+</body>
+</html>

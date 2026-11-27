@@ -11,7 +11,11 @@ const qaPaths = {
   '/__qa/objectives': 'scripts/objective-browser-check.html',
   '/__qa/objectives.js': 'scripts/objective-browser-check.js',
   '/__qa/round1': 'scripts/round1-browser-check.html',
-  '/__qa/round1.js': 'scripts/round1-browser-check.js'
+  '/__qa/round1.js': 'scripts/round1-browser-check.js',
+  '/__qa/round2': 'scripts/round2-browser-check.html',
+  '/__qa/round2.js': 'scripts/round2-browser-check.js',
+  '/__qa/round3': 'scripts/round3-browser-check.html',
+  '/__qa/round3.js': 'scripts/round3-browser-check.js'
 };
 const root = built ? resolve(project, 'dist') : project;
 const port = Number(process.env.PORT || 4173);
@@ -31,7 +35,11 @@ createServer(async (req, res) => {
     if (path === '/') path = '/index.html';
     if (qa && path === '/__qa/no-webgl') {
       const source = await readFile(resolve(root, 'index.html'), 'utf8');
-      const html = source.replace('<head>', `<head><base href="/">
+      const html = source.replaceAll('"assets/', '"/assets/')
+        .replace('href="style.css"', 'href="/style.css"')
+        .replace('src="app.js"', 'src="/app.js"')
+        .replaceAll('"./vendor/', '"/vendor/')
+        .replace('<head>', `<head>
         <script>
           const getCanvasContext = HTMLCanvasElement.prototype.getContext;
           HTMLCanvasElement.prototype.getContext = function (kind, ...options) {

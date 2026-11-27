@@ -4,14 +4,14 @@ import { createObjectiveModel } from './objective-model.js';
 
 export { objectiveSimulationControl, objectiveLiveReading } from './objective-model.js';
 
-export function createObjectiveScene(host, objective, reducedMotion, { onSelect, onAdjust }) {
-  const experiment = createObjectiveModel(objective);
+export function createObjectiveScene(host, objective, reducedMotion, { onSelect, onAdjust, canAdjust = () => Boolean(onAdjust), presentation }) {
+  const experiment = createObjectiveModel(objective, presentation);
   const scene = createLabScene(host, objective.mission, reducedMotion, experiment);
   const canvas = host.querySelector('canvas');
   let pointer;
-  let position = 0;
+  let position = presentation?.position ?? 0;
 
-  const pickGrip = event => scene.pick(event.clientX, event.clientY, experiment.grips.filter(object => object.visible));
+  const pickGrip = event => canAdjust() && scene.pick(event.clientX, event.clientY, experiment.grips.filter(object => object.visible));
 
   function pressed(event) {
     if (pointer || event.button !== 0) return;
@@ -50,6 +50,7 @@ export function createObjectiveScene(host, objective, reducedMotion, { onSelect,
       return;
     }
     if (event.type !== 'pointerup' || Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 6) return;
+    if (!onSelect) return;
     const target = scene.pick(event.clientX, event.clientY, experiment.docks);
     if (target) onSelect(target.userData.setupIndex);
   }
@@ -77,6 +78,11 @@ export function createObjectiveScene(host, objective, reducedMotion, { onSelect,
     adjust(value) {
       position = value;
       experiment.adjust(value);
+    },
+    present(next) {
+      position = next.position;
+      experiment.present(next);
+      host.dataset.setup = String(next.index);
     }
   };
 }

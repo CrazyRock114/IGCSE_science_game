@@ -554,11 +554,10 @@ function stagePanel(objective, colour) {
     fallback.visible = false;
   }
   let previous;
-  const paint = (index, recorded, readout) => {
-    const key = `${index}/${recorded}/${readout}`;
+  const paint = (index, recorded, readout, condition = objective.cases[index].condition) => {
+    const key = `${index}/${recorded}/${readout}/${condition}`;
     if (previous === key) return;
     previous = key;
-    const entry = objective.cases[index];
     fallback.scale.x = .32 + .68 * ((index + 1) / objective.cases.length);
     if (!context) return;
     context.fillStyle = '#0d1b2b';
@@ -568,10 +567,10 @@ function stagePanel(objective, colour) {
     context.fillText(objective.mission.id + ' · ' + objective.number, 32, 52);
     context.fillStyle = '#f2f7fb';
     context.font = '600 45px system-ui';
-    wrap(context, entry.condition, 656).slice(0, 2).forEach((line, i) => context.fillText(line, 32, 119 + i * 53));
+    wrap(context, condition, 656).slice(0, 2).forEach((line, i) => context.fillText(line, 32, 119 + i * 53));
     context.fillStyle = recorded ? '#' + colour.toString(16).padStart(6, '0') : '#a7bece';
     context.font = '500 33px system-ui';
-    wrap(context, recorded ? entry.observation : readout, 656).slice(0, 4).forEach((line, i) => context.fillText(line, 32, 251 + i * 39));
+    wrap(context, readout, 656).slice(0, 4).forEach((line, i) => context.fillText(line, 32, 251 + i * 39));
     texture.needsUpdate = true;
   };
   return { card, paint };
@@ -612,7 +611,7 @@ function buildSampleCarriage(k) {
   };
 }
 
-export function createObjectiveModel(objective) {
+export function createObjectiveModel(objective, presentation) {
   const { mission, apparatus } = objective;
   const model = new THREE.Group();
   model.name = 'Objective ' + objective.key + ' ' + apparatus;
@@ -652,18 +651,26 @@ export function createObjectiveModel(objective) {
   });
   const marker = k.disc(.068,.12,0,.205,.72,k.response);
   marker.name = 'Selected sample marker';
+  if (presentation) {
+    for (const dock of docks) dock.visible = false;
+    marker.visible = false;
+  }
   const moveCarriage = grips.length ? null : buildSampleCarriage(k);
-  let position = 0;
-  let selected = order[0];
-  let playback = false;
+  let position = apparatusPosition(presentation?.position ?? 0);
+  let selected = presentation?.index ?? order[0];
+  let playback = presentation?.recorded ?? false;
   let start = 0;
   let clock = 0;
   const control = objectiveSimulationControl(objective);
   function paintPanel() {
+    if (presentation) {
+      paint(selected, playback, presentation.observation ?? '', presentation.condition ?? objective.apparatus);
+      return;
+    }
     const reading = objectiveLiveReading(objective, selected, position);
-    paint(selected, playback && atReferenceMark(position),
-      reading ?? (atReferenceMark(position) ? 'Ready to record' : control.format?.(position, selected) ?? 'Adjust reference control'));
-
+    const recorded = playback && atReferenceMark(position);
+    paint(selected, recorded, recorded ? objective.cases[selected].observation
+      : reading ?? (atReferenceMark(position) ? 'Ready to record' : control.format?.(position, selected) ?? 'Adjust reference control'));
   }
   paintPanel();
   return {
@@ -681,18 +688,26 @@ export function createObjectiveModel(objective) {
       position = apparatusPosition(value);
       paintPanel();
     },
+    present(next) {
+      if (next.recorded && (!playback || next.index !== selected || next.observation !== presentation?.observation)) start = clock;
+      presentation = next;
+      selected = next.index;
+      playback = next.recorded;
+      position = apparatusPosition(next.position);
+      paintPanel();
+    },
     update(time, _level, _result, reduced = false) {
       clock = time;
       const active = presets[selected];
       const elapsed = Math.max(0, time - start);
-      const running = playback && atReferenceMark(position);
+      const running = playback && (presentation || atReferenceMark(position));
       const progress = running ? (reduced ? 1 : 1 - Math.exp(-elapsed * 4)) : position;
       const slide = .11 * (1 - position);
       marker.position.x = docks[selected].position.x;
       marker.position.y = .205 + (playback ? .1 * (1 - progress) : 0);
       card.position.y = .93 - slide;
       moveCarriage?.(position, selected);
-      animate({ ...active, apparatus: position, running }, elapsed, progress);
+      animate({ ...active, apparatus: position, running: Boolean(running), practical: presentation?.settings }, elapsed, progress);
     }
   };
 }

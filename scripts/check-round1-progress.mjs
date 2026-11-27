@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createProgressStore, legacyProgressKey, readProgress } from '../progress-store.js';
+import { createProgressStore, legacyProgressKey, practicalDraftChanges, readProgress } from '../progress-store.js';
 
 const data = new Map();
 let fail = false;
@@ -73,3 +73,28 @@ try {
   Date.now = systemTime;
 }
 console.log('Round 1 progress checks passed for independent writes, legacy state, and failed-save recovery.');
+
+const practicalKey = 'B6.1/4';
+const setObjective = (tab, key, progress) => tab.write({ type: 'objective', key, progress });
+setObjective(tabA, practicalKey, { runs: [0, 1], done: true });
+const blank = { trials: {}, variable: '', conclusion: '' };
+setObjective(tabA, practicalKey, { practical: { mode: 'guided', draft: practicalDraftChanges(blank, {
+  ...blank, variable: 'light', trials: { 'trial-7': { starch: true } }
+}) } });
+setObjective(tabB, practicalKey, { practical: { mode: 'guided', draft: practicalDraftChanges(blank, {
+  ...blank, trials: { 'trial-6': { starch: false } }
+}) } });
+setObjective(tabB, practicalKey, { practical: { mode: 'independent', draft: { trials: [6] } } });
+setObjective(tabB, 'P1.2/6', { done: true, practical: { mode: 'guided', draft: { start: 'B' } } });
+setObjective(tabA, practicalKey, { practical: { mode: 'guided' } });
+const resumed = readProgress(storage);
+assert.deepEqual(resumed.objectiveProgress[practicalKey], {
+  runs: [0, 1], done: true,
+  practical: { mode: 'guided', drafts: {
+    guided: { variable: 'light', trials: { 'trial-7': { starch: true }, 'trial-6': { starch: false } } },
+    independent: { trials: [6] }
+  } }
+});
+assert.equal(resumed.objectiveProgress['P1.2/6'].practical.drafts.guided.start, 'B');
+assert.equal(resumed.lastObjective, practicalKey);
+console.log('Round 2 progress checks passed for separate modes, concurrent observations, legacy records and stable objective IDs.');

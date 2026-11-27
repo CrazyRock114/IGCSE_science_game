@@ -4,7 +4,7 @@ import { createExperimentModel } from '../lab-scene.js';
 import { biology } from '../curriculum/biology.js';
 import { chemistry } from '../curriculum/chemistry.js';
 import { physics } from '../curriculum/physics.js';
-import { capstoneIds, capstoneQuestions, featuredId, getMission, hasComparison, investigations, matches, sampleAt } from '../game.js';
+import { capstoneIds, featuredId, getMission, hasComparison, investigations, matches, sampleAt } from '../game.js';
 
 const groups = [
   ['Biology', biology, 43, 147, 84],
@@ -68,7 +68,7 @@ assert.equal(sampleAt(featured, 100), 18);
 assert.ok(!hasComparison([{ input: 2 }, { input: 2 }]));
 assert.ok(hasComparison([{ input: 2 }, { input: 3 }]));
 assert.ok(capstoneIds.every(id => all.some(mission => mission.id === id)));
-assert.deepEqual(capstoneQuestions.map(question => question.subject), ['biology', 'chemistry', 'physics']);
+assert.deepEqual(capstoneIds, ['B19.1', 'C10.1', 'P4.2.5']);
 assert.equal(sampleAt(getMission(all, 'P4.2.5'), 3), 0.75);
 assert.equal(sampleAt(getMission(all, 'P4.2.5'), 4), 1);
 console.log('All mission links, sample readings, challenge data and capstone prerequisites checked.');

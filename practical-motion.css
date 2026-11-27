@@ -1,0 +1,10 @@
+.motion-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.apparatus-control.motion-timer {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}

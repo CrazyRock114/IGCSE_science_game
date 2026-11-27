@@ -246,27 +246,36 @@ function pigmentSlide(k) {
 }
 
 function controlledShoots(k) {
-  const root = tint(k,0x62b356);
-  const fluid = tint(k,0x5ca5b2,.3);
-  const positive = tint(k,0x374798,.72);
-  const lamps = [];
-  const test = [];
-  const samples = [-.67,.67].map((x,i) => {
+  const chambers = [-.67,.67].map(x => {
+    const foliage = tint(k,0x62b356);
     k.tube(.4,.87,x,.78,0,k.crystal);
-    k.disc(.36,.53,x,.62,0,fluid);
+    const liquid = k.disc(.36,.53,x,.62,0,tint(k,0x5ca5b2,.3));
     ringFlat(k,.39,.022,x,1.226,0,k.pale);
-    shoot(k,x,.36,0,root,.81);
-    lamps.push(k.box(.68,.083,.31,x,1.45,-.16,k.pale));
-    test.push(k.disc(.30,.06,x,.29,.32,k.pale));
-    return k.sphere(.119,x,.36,.36,positive);
+    const { stem, leaves } = shoot(k,x,.36,0,foliage,.81);
+    const lamp = k.box(.68,.083,.31,x,1.45,-.16,k.pale);
+    const tray = k.disc(.30,.06,x,.29,.32,k.pale);
+    const sample = k.sphere(.119,x,.36,.36,tint(k,0x374798,.72));
+    return { foliage, liquid, stem, leaves, lamp, tray, sample };
   });
   k.box(2.37,.1,1.17,0,.21,0,k.dark);
+  const [active, spare] = chambers;
+  const cover = k.box(.36,.26,.04,-.67,.85,.29,k.dark);
+  const absorber = k.disc(.099,.052,-.47,.37,-.14,k.pale);
+  cover.visible = absorber.visible = false;
   return (s,t,progress) => {
-    lamps[1].visible = s.index !== 0;
-    samples.forEach((sample,i) => {
-      sample.visible = i === 0 && s.index !== 2 && progress > .61;
-      test[i].scale.setScalar(1+.05*Math.sin(t*2) * progress);
-    });
+    const settings = s.practical;
+    cover.visible = Boolean(settings && !settings.light);
+    absorber.visible = Boolean(settings && !settings.carbonDioxide);
+    active.lamp.visible = settings ? Boolean(settings.light) : true;
+    spare.lamp.visible = !settings && s.index !== 0;
+    active.liquid.visible = spare.liquid.visible = !settings;
+    spare.stem.visible = !settings;
+    spare.leaves.forEach(leaf => { leaf.visible = !settings; });
+    active.foliage.color.setHex(settings && !settings.chlorophyll ? 0xd9d09b : 0x62b356);
+    active.sample.material.color.setHex(settings ? (settings.starch ? 0x1a2154 : 0xaf7429) : 0x374798);
+    active.sample.visible = progress > .61 && (settings ? s.running : s.index !== 2);
+    spare.sample.visible = false;
+    for (const { tray } of chambers) tray.scale.setScalar(1+.05*Math.sin(t*2) * progress);
   };
 }
 

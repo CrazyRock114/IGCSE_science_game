@@ -1,10 +1,11 @@
 import { missions as all, objectiveCatalog } from './objective-catalog.js';
 import { getObjective, objectiveHref, objectiveXp } from './objective-game.js';
 import { showObjective } from './objective-view.js';
+import { capstoneEvidence, gradeCapstone, pumpShift } from './capstone-game.js';
 import { clean } from './html.js';
 import { icon } from './icons.js';
 import { createProgressStore, isProgressKey } from './progress-store.js';
-import { capstoneIds, capstoneQuestions, checkMissionConclusion, featuredId, fieldSkills, getMission, hasComparison, investigations, matches, sampleAt, subjects, syllabus } from './game.js';
+import { capstoneIds, checkMissionConclusion, featuredId, fieldSkills, getMission, hasComparison, investigations, matches, sampleAt, subjects, syllabus } from './game.js';
 
 const main = document.querySelector('#main');
 const navigation = document.querySelector('#navigation');
@@ -513,7 +514,7 @@ function connections() {
     <section class="panel capstone">
       <div class="eyebrow">Valley recovery · Capstone</div>
       <h2>Restore the reservoir</h2>
-      <p>After heavy rain, muddy water is reaching the valley’s intake. Prepare an action plan that reduces sediment upstream, treats it at the waterworks and keeps the pump running from backup power.</p>
+      <p>After heavy rain, muddy water is reaching the valley’s intake. Use readings from the three field missions to plan how to reduce sediment upstream, treat the water and keep the pump running on backup power.</p>
       <div class="capstone-evidence">${essentials.map(mission => `<a href="#lab/${mission.id}" class="${mission.subject}">
         <small>${sName(mission.subject)} · ${store.done[mission.id] ? 'Evidence ready' : 'Evidence needed'}</small>${clean(mission.quest)}
       </a>`).join('')}</div>
@@ -531,15 +532,28 @@ function connections() {
     </section>`;
 }
 
-function evidenceSummary(id) {
+function recoverySelect(name, label, options, placeholder = 'Choose an answer') {
+  const saved = store.capstoneDraft?.[name] ?? '';
+  const available = options.some(([value]) => value === saved);
+  return `<label for="recovery-${name}">${label}
+    <select id="recovery-${name}" name="${name}" class="objective-select">
+      <option value="">${placeholder}</option>
+      ${saved && !available ? `<option value="${clean(saved)}" selected>Saved choice unavailable</option>` : ''}
+      ${options.map(([value, text]) => `<option value="${clean(value)}"${value === saved ? ' selected' : ''}>${clean(text)}</option>`).join('')}
+    </select></label>`;
+}
+
+function evidenceSummary(id, fields) {
   const mission = getMission(all, id);
-  const trials = store.trials[id] ?? [];
-  const sorted = [...trials].sort((a, b) => a.input - b.input);
-  const endpoints = sorted.length > 1 ? [sorted[0], sorted.at(-1)] : sorted;
-  const readings = endpoints.map(trial => `<li>${number.format(trial.input)} ${clean(mission.unit)} produced ${number.format(trial.output)} ${clean(mission.metricUnit)}</li>`);
-  return `<details class="evidence-note"><summary>Your field readings · ${clean(mission.quest)}</summary>
-    <ul>${readings.join('')}</ul><a class="small-link" href="#lab/${id}">Open the full field record</a>
-  </details>`;
+  const readings = capstoneEvidence(id, store.trials[id]).sort((a, b) => a.input - b.input);
+  const options = readings.map(({ ref, input, output }) => [ref,
+    `${number.format(input)}${mission.unit === '%' ? '%' : ` ${mission.unit}`} → ${number.format(output)} ${mission.metricUnit}`]);
+  return `<p class="recovery-record-label">${clean(mission.variable)} → ${clean(mission.metric)}</p>
+    <div class="recovery-fields">
+      ${fields.map(([name, label]) => recoverySelect(name, label, options, 'Choose a recorded reading')).join('')}
+    </div>
+    ${readings.length < fields.length ? '<p class="muted">Record more settings in the field before citing this evidence.</p>' : ''}
+    <a class="small-link" href="#lab/${id}">Field record · ${clean(mission.quest)}</a>`;
 }
 
 function capstone() {
@@ -547,26 +561,96 @@ function capstone() {
     location.replace('#connections');
     return;
   }
+  const approved = '<p class="feedback"><strong>Recovery plan approved · 300 XP earned.</strong></p>';
+  const priorApproval = '<p class="feedback"><strong>Recovery plan approved in a previous submission · 300 XP earned.</strong></p>';
+  const partFeedback = name => `<div id="recovery-${name}-feedback" class="recovery-part-feedback" tabindex="-1"></div>`;
   main.innerHTML = `<a class="back-link" href="#connections">${icon('back')} Connections</a>` +
-    intro('Valley recovery · Capstone', 'Restore the reservoir', 'Combine your field evidence to recommend a recovery plan for the valley.') + `
-    <form class="lab-sidebar" id="recovery">
-      ${capstoneQuestions.map((question, i) => `<fieldset class="panel panel-body ${question.subject}">
-        <legend>${question.name}</legend><p>${question.prompt}</p>
-        ${evidenceSummary(capstoneIds[i])}
-        <div class="choice-list">${question.options.map((option, index) => `<label class="choice">
-          <input type="radio" name="q${i}" value="${index}" ${store.capstone && index === question.answer ? 'checked' : ''} required> ${option}</label>`).join('')}</div>
-      </fieldset>`).join('')}
+    intro('Valley recovery · Capstone', 'Restore the reservoir', 'Cite your field readings and propose a plan to control sediment, treat the intake water and power the pump after the storm.') + `
+    <form class="recovery-form" id="recovery" novalidate>
+      <fieldset class="panel panel-body biology" data-recovery-part="watershed">
+        <legend>The watershed</legend>
+        <p>Compare two tree-cover settings from the same simulated storm. Recommend what the team should do along the banks.</p>
+        ${evidenceSummary('B19.1', [['watershedA', 'Watershed reading A'], ['watershedB', 'Watershed reading B']])}
+        ${recoverySelect('watershedAction', 'Vegetation recommendation', [
+          ['clear', 'Clear the vegetated banks'],
+          ['retain', 'Retain or restore native vegetation'],
+          ['no-change', 'Tree cover does not affect runoff']
+        ])}
+        ${partFeedback('watershed')}
+      </fieldset>
+      <fieldset class="panel panel-body chemistry" data-recovery-part="filter">
+        <legend>The filter bed</legend>
+        <p>Compare two sand depths tested with the same incoming water. Choose the better setting for suspended material and interpret the result.</p>
+        ${evidenceSummary('C10.1', [['filterA', 'Filter reading A'], ['filterB', 'Filter reading B']])}
+        ${recoverySelect('filterTreatment', 'Treatment', [
+          ['a', 'Use the sand depth in reading A'], ['b', 'Use the sand depth in reading B'], ['skip', 'Skip the sand filter']
+        ])}
+        ${recoverySelect('filterClaim', 'What does lower turbidity establish?', [
+          ['safety', 'The treated water is safe to drink'],
+          ['clarity', 'Less cloudiness from suspended material'],
+          ['salt', 'Less dissolved salt in the water']
+        ])}
+        ${partFeedback('filter')}
+      </fieldset>
+      <fieldset class="panel panel-body physics" data-recovery-part="power">
+        <legend>The power supply</legend>
+        <p>The pump draws ${pumpShift.powerW} W for ${pumpShift.hours} h. The battery already provides ${pumpShift.availableKWh} kWh of usable energy.</p>
+        <p>Cite a reading showing the pump using energy. Calculate the extra usable capacity needed for the full shift.</p>
+        ${evidenceSummary('P4.2.5', [['powerReading', 'Pump energy reading']])}
+        <div class="recovery-fields">
+          <label for="recovery-capacity">Additional usable capacity
+            <input class="recovery-value" id="recovery-capacity" name="capacity" type="text" inputmode="decimal" maxlength="24" value="${clean(store.capstoneDraft?.capacity)}">
+          </label>
+          ${recoverySelect('capacityUnit', 'Capacity unit', [['kWh', 'kWh'], ['Wh', 'Wh'], ['W', 'W']], 'Choose a unit')}
+        </div>
+        ${partFeedback('power')}
+      </fieldset>
+      <fieldset class="panel panel-body" data-recovery-part="evaluation">
+        <legend>Evaluate the evidence</legend>
+        <p>Choose a follow-up measurement that addresses a limit of the field evidence.</p>
+        ${recoverySelect('evaluation', 'Follow-up measurement', [
+          ['appearance', 'Use appearance to certify drinking safety'],
+          ['microbes', 'Test the filtered water for microbes'],
+          ['assume', 'Assume the same runoff in every storm'],
+          ['storms', 'Measure sediment in comparable storms']
+        ])}
+        ${partFeedback('evaluation')}
+      </fieldset>
       <div class="button-row"><button class="button primary" type="submit">${icon('flag')} Submit recovery plan</button></div>
-      <div id="recovery-feedback" aria-live="polite">${store.capstone ? '<p class="feedback">Recovery plan approved · 300 XP earned.</p>' : ''}</div>
+      <div id="recovery-feedback" role="status" tabindex="-1">${store.capstone ? priorApproval : ''}</div>
     </form>`;
   const form = main.querySelector('#recovery');
+  const response = form.querySelector('#recovery-feedback');
+
+  function remember(control) {
+    if (store.capstoneDraft?.[control.name] === control.value) return;
+    save({ type: 'capstone-draft', field: control.name, value: control.value });
+    const feedback = control.closest('fieldset').querySelector('.recovery-part-feedback');
+    feedback.replaceChildren();
+    delete feedback.dataset.result;
+    response.innerHTML = store.capstone ? priorApproval : '';
+  }
+
+  form.addEventListener('input', event => {
+    if (event.target.name === 'capacity') remember(event.target);
+  });
+  form.addEventListener('change', event => {
+    if (event.target.matches('select, input[name="capacity"]')) remember(event.target);
+  });
   form.addEventListener('submit', event => {
     event.preventDefault();
-    const choices = new FormData(form);
-    const missed = capstoneQuestions.filter((question, i) => Number(choices.get('q' + i)) !== question.answer);
-    const response = main.querySelector('#recovery-feedback');
-    if (missed.length) {
-      response.innerHTML = `<p class="feedback error">Review your evidence for ${missed.map(question => question.name.toLowerCase()).join(', ')} and try again.</p>`;
+    store = persistence.refresh();
+    const result = gradeCapstone(store.trials, Object.fromEntries(new FormData(form)));
+    let firstFailure;
+    for (const [part, { ok, message }] of Object.entries(result.parts)) {
+      const feedback = form.querySelector(`#recovery-${part}-feedback`);
+      feedback.dataset.result = ok ? 'pass' : 'fail';
+      feedback.innerHTML = `<p class="feedback${ok ? '' : ' error'}"><strong>${ok ? 'Supported.' : 'Revise this part.'}</strong> ${clean(message)}</p>`;
+      if (!ok) firstFailure ??= feedback;
+    }
+    if (!result.complete) {
+      response.innerHTML = `${store.capstone ? priorApproval : ''}<p class="feedback error">Review the feedback for the parts that need revision.</p>`;
+      firstFailure.focus();
       return;
     }
     if (!store.capstone) {
@@ -574,7 +658,8 @@ function capstone() {
       updateRank();
       xpSound();
     }
-    response.innerHTML = '<p class="feedback"><strong>Recovery plan approved · 300 XP</strong><br>Replanting the banks limits erosion, the filter reduces suspended solids, and adding 0.25 kWh gives the pump the 1.00 kWh it needs for the shift.</p>';
+    response.innerHTML = approved;
+    response.focus();
   });
 }
 
@@ -595,8 +680,9 @@ function render() {
         isCurrent: () => token === routeToken,
         motionReduced,
         onProgress(progress, completed) {
+          const alreadyComplete = store.objectiveProgress[objective.key]?.done;
           save({ type: 'objective', key: objective.key, progress });
-          if (completed) {
+          if (completed && !alreadyComplete) {
             updateRank();
             xpSound();
           }

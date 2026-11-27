@@ -3,6 +3,7 @@ import { apparatusPosition, atReferenceMark, referenceMark, sampleControl } from
 import { clean } from './html.js';
 import { icon } from './icons.js';
 import { checkEvidence, objectiveCaseOrder, objectiveHref, objectiveXp, recordObjective, restoreObjective } from './objective-game.js';
+import { practicals, showPractical } from './practical-view.js';
 
 const messages = {
   compare: 'Run at least two different setups to compare the observations.',
@@ -12,6 +13,8 @@ const messages = {
 };
 
 export function showObjective(main, objective, saved, { onProgress, isCurrent, motionReduced }) {
+  const practical = practicals.get(objective.key);
+  if (practical) return showPractical(main, objective, saved, practical, { onProgress, isCurrent, motionReduced });
   const { mission, number, tier, apparatus, action, description, cases, answer, insight } = objective;
   const subject = subjects.find(entry => entry.id === mission.subject);
   const position = mission.objectives.findIndex(([id]) => id === number);
