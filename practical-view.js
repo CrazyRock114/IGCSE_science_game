@@ -2,7 +2,7 @@ import { subjects } from './game.js';
 import { clean } from './html.js';
 import { icon } from './icons.js';
 import { objectiveHref } from './objective-game.js';
-import { applyPracticalDraft, practicalDraftChanges } from './progress-store.js';
+import { applyPracticalDraft, legacyTitrationSnapshot, practicalDraftChanges } from './progress-store.js';
 import { motionPractical } from './practical-motion.js';
 import { photosynthesisPractical } from './practical-photosynthesis.js';
 import { titrationPractical } from './practical-titration.js';
@@ -22,6 +22,8 @@ export function showPractical(main, objective, saved, practical, { onProgress, i
   const previous = mission.objectives[index - 1];
   const next = mission.objectives[index + 1];
   const drafts = {};
+  const titrationProtocol = practical === titrationPractical;
+  let storedDraft;
   let mode = saved?.practical?.mode === 'independent' ? 'independent' : 'guided';
   let done = Boolean(saved?.done);
   let scene;
@@ -65,6 +67,7 @@ export function showPractical(main, objective, saved, practical, { onProgress, i
           </select>
           <span id="practical-completion" class="practical-status" role="status"></span>
         </section>
+        <p class="feedback error" id="practical-conflict" role="status" tabindex="-1" hidden></p>
         <div id="practical-activity"></div>
         <nav class="objective-nav panel panel-body" aria-label="More objective experiments">
           ${previous ? `<a class="small-link" href="${objectiveHref(mission.id, previous[0])}">Previous objective</a>` : ''}
@@ -80,6 +83,7 @@ export function showPractical(main, objective, saved, practical, { onProgress, i
   const tip = main.querySelector('#objective-viewer-tip');
   const picker = main.querySelector('#practical-mode');
   const completion = main.querySelector('#practical-completion');
+  const conflict = main.querySelector('#practical-conflict');
   const activity = main.querySelector('#practical-activity');
 
   const workbench = {
@@ -92,32 +96,77 @@ export function showPractical(main, objective, saved, practical, { onProgress, i
     }
   };
 
+  function restore(progress) {
+    storedDraft = progress?.practical?.drafts?.[mode];
+    const draft = applyPracticalDraft(practical.createState(objective), storedDraft ?? {});
+    return practical.restoreState?.(draft, objective, mode === 'guided') ?? draft;
+  }
+
   function draw() {
     adjust = null;
-    currentDraft = drafts[mode] ?? applyPracticalDraft(practical.createState(objective), saved?.practical?.drafts?.[mode] ?? {});
+    currentDraft = drafts[mode] ?? restore(saved);
     practical.render(activity, { objective, state: currentDraft, guided: mode === 'guided', update, scene: workbench });
     tip.textContent = adjust ? 'Drag the marked handle · Drag empty space to orbit' : 'Drag to orbit';
   }
 
-  function update(draft, { complete = false, focus = null, redraw = true } = {}) {
+  function update(draft, { complete = false, focus = null, redraw = true, trialIndex = null, checkTrials = false } = {}) {
     const credited = complete && !done;
     const changes = practicalDraftChanges(currentDraft, draft);
-    done ||= complete;
+    const guarded = trialIndex !== null || checkTrials;
+    const practicalProgress = { mode, draft: changes, ...(titrationProtocol ? { titrationProtocol } : {}) };
+    let adoptsLegacyRuns = false;
+    if (guarded) {
+      const indices = checkTrials ? Object.keys(currentDraft.runs) : [trialIndex];
+      practicalProgress.expectedRuns = Object.fromEntries(indices.map(index => [index,
+        currentDraft.runs[index].revision ?? legacyTitrationSnapshot(storedDraft, index)]));
+      if (checkTrials) {
+        Object.assign(changes, { mean: draft.mean, feedback: draft.feedback });
+        if (complete) {
+          const legacyRuns = Object.entries(draft.runs).filter(([, run]) => !run.revision);
+          adoptsLegacyRuns = legacyRuns.length > 0;
+          if (adoptsLegacyRuns) practicalProgress.adoptRuns = Object.fromEntries(legacyRuns);
+        }
+      }
+      if (trialIndex !== null) {
+        delete changes.runs;
+        changes.feedback = null;
+        changes.active = draft.active;
+        practicalProgress.replaceRun = { index: trialIndex, run: draft.runs[trialIndex] };
+      }
+    }
+    let outcome;
+    if (guarded || credited || Object.keys(changes).length) {
+      outcome = onProgress({ done: done || complete, practical: practicalProgress }, credited);
+    }
+    const rejected = outcome?.accepted === false;
+    done = outcome ? Boolean(outcome.progress?.done) : done || complete;
+    if (guarded && (redraw || rejected || adoptsLegacyRuns)) draft = { ...restore(outcome.progress), active: draft.active };
+    else if (trialIndex !== null) {
+      // Typing keeps the form mounted. Update only the trial visible to this edit
+      // so grading cannot silently pick up unseen changes to other trials.
+      const savedRun = outcome.progress.practical.drafts[mode].runs[trialIndex];
+      draft = { ...draft, runs: { ...draft.runs, [trialIndex]: savedRun } };
+    }
     drafts[mode] = currentDraft = draft;
-    if (credited || Object.keys(changes).length) onProgress({ done, practical: { mode, draft: changes } }, credited);
-    if (credited) completion.textContent = 'Objective complete';
-    if (redraw) {
+    if (done) completion.textContent = 'Objective complete';
+    conflict.hidden = !rejected;
+    if (rejected) conflict.textContent = 'This trial changed in another tab. The latest saved state is shown. Check the trial before trying again.';
+    if (redraw || rejected) {
       const target = focus ?? document.activeElement?.id;
       draw();
-      if (target) document.getElementById(target)?.focus({ preventScroll: !focus });
+      if (rejected) conflict.focus();
+      else if (target) document.getElementById(target)?.focus({ preventScroll: !focus });
     }
+    return { draft: currentDraft, accepted: !rejected };
   }
 
   picker.value = mode;
   if (done) completion.textContent = 'Objective complete';
   picker.addEventListener('change', () => {
     mode = picker.value;
-    onProgress({ done, practical: { mode } });
+    const outcome = onProgress({ done, practical: { mode, ...(titrationProtocol ? { titrationProtocol } : {}) } });
+    if (practical.restoreState && outcome) drafts[mode] = restore(outcome.progress);
+    conflict.hidden = true;
     draw();
   });
   reset.addEventListener('click', () => scene?.resetCamera());

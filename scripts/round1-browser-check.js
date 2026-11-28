@@ -1,3 +1,5 @@
+import { readProgress } from '/progress-store.js';
+
 const start = document.querySelector('#start');
 const summary = document.querySelector('#summary');
 const results = document.querySelector('#results');
@@ -104,6 +106,68 @@ function enzymeReadings(game) {
   [25, 40].forEach(setting => record(game, setting));
 }
 
+async function checkFormulaReading({ mission, units, chartBounds, readings: expected, oldOutput }) {
+  const [input, output] = expected.at(-1);
+  const [inputUnit, outputUnit] = units;
+  let legacy;
+  if (oldOutput !== undefined) {
+    legacy = JSON.stringify({ trials: { [mission]: [{ input, output: oldOutput }] }, done: { [mission]: true } });
+    localStorage.setItem(legacyKey, legacy);
+  }
+  const game = await open(`#lab/${mission}`);
+  if (legacy) {
+    checkReadings(game, [[input, output]]);
+    checkCompletion(game, true);
+    checkXp(game, 100);
+  }
+
+  const plotted = new WeakMap();
+  const context = game.win.CanvasRenderingContext2D.prototype;
+  const arc = context.arc;
+  context.arc = function (x, y, ...args) {
+    if (this.canvas.matches('#readings canvas')) {
+      if (!plotted.has(this.canvas)) plotted.set(this.canvas, []);
+      plotted.get(this.canvas).push([x, y]);
+    }
+    return arc.call(this, x, y, ...args);
+  };
+
+  expected.slice(0, -1).forEach(([setting]) => record(game, setting));
+  const live = record(game, input);
+  const displayed = Number(live.split(' ')[0].replaceAll(',', ''));
+  check(Math.abs(displayed - output) <= 0.00005 + 1e-10 && live.endsWith(` ${outputUnit}`), `Expected ${output} ${outputUnit}, saw ${live}`);
+  const rowUnits = game.find('.trials thead').textContent;
+  check(rowUnits.includes(`(${inputUnit})`) && rowUnits.includes(`(${outputUnit})`), 'Recorded table changed its units');
+  const allReadings = legacy ? [[input, output], ...expected] : expected;
+  checkReadings(game, allReadings);
+  check(readings(game).at(-1)[1] === displayed, 'Live readout and newly recorded row differ');
+  const saved = readProgress(localStorage).trials[mission].at(-1);
+  check(saved.input === input && Math.abs(saved.output - output) < 1e-10, 'The saved trial did not retain its unrounded result');
+
+  const chart = game.find('#readings canvas');
+  const points = plotted.get(chart);
+  const [[minX, maxX], [minY, maxY]] = chartBounds;
+  check(points?.length === allReadings.length, 'The plot did not draw every recorded reading');
+  for (const [setting, measured] of allReadings) {
+    const expectedX = 46 + (chart.width - 62) * (setting - minX) / (maxX - minX);
+    const expectedY = chart.height - 25 - (chart.height - 38) * (measured - minY) / (maxY - minY);
+    check(points.some(([x, y]) => Math.abs(x - expectedX) < 1e-6 && Math.abs(y - expectedY) < 1e-6), 'Plot point did not use the unrounded model reading');
+  }
+
+  const plotPixels = canvas => canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+  const pixels = plotPixels(chart);
+  await reload(game);
+  checkReadings(game, allReadings);
+  check(game.find('#condition').valueAsNumber === input && game.find('#metric-value').textContent.trim() === live, 'Refresh did not restore the same slider reading');
+  const restored = plotPixels(game.find('#readings canvas'));
+  check(restored.length === pixels.length && restored.every((value, index) => pixels[index] === value), 'Refresh changed the plotted readings');
+  if (legacy) {
+    checkCompletion(game, true);
+    checkXp(game, 100);
+    check(localStorage.getItem(legacyKey) === legacy, 'Existing formula readings were rewritten in storage');
+  }
+}
+
 const cases = [
   ['Physics live reading, recorded value, plotted point and refresh', async () => {
     const game = await open('#lab/P1.6.1');
@@ -129,6 +193,14 @@ const cases = [
     checkReadings(game, [[0, 0], [1.04, 32.448]]);
     check(game.find('#condition').valueAsNumber === 1.04 && game.find('#metric-value').textContent.trim() === live, 'Refresh did not restore the same slider reading');
   }],
+  ['Electrical heating uses I²R for live, saved and plotted readings, including an old save', () => checkFormulaReading({
+    mission: 'P4.4', units: ['A', 'W'], chartBounds: [[0, 8], [0, 32]],
+    readings: [[2, 2], [0.96, 0.4608]], oldOutput: 0.96
+  })],
+  ['Bike pump uses constant-temperature gas pressure for live, saved and plotted readings', () => checkFormulaReading({
+    mission: 'P2.1.3', units: ['mL', 'kPa'], chartBounds: [[10, 50], [100, 500]],
+    readings: [[20, 250], [14, 5000 / 14]]
+  })],
   ...[
     [[50, 51], [/start of the plateau/i, /higher setting/i]],
     [[50, 100], [/start of the plateau/i]],
@@ -159,7 +231,7 @@ const cases = [
     checkCompletion(game, true);
     checkXp(game, 100);
   }],
-  ['Ordinary enzyme mission still requires two distinct readings', async () => {
+  ['Ordinary enzyme mission still interpolates its reference model and requires two distinct readings', async () => {
     const game = await open('#lab/B5.1');
     [25, 25].forEach(setting => record(game, setting));
     submit(game);
@@ -169,6 +241,8 @@ const cases = [
     submit(game);
     checkCompletion(game, true);
     checkXp(game, 100);
+    check(record(game, 25.6) === '48.16 %', 'Reference-data interpolation changed between 25 °C and 40 °C');
+    checkReadings(game, [[25, 46], [25, 46], [40, 100], [25.6, 48.16]]);
   }],
   ['A later write from a stale document preserves the greenhouse completion', async () => {
     const games = await Promise.all([open('#lab/B6.1'), open('#lab/B5.1')]);

@@ -3,11 +3,23 @@
 const objectives = (lastCore, descriptions) => descriptions.map((description, index) => [
   String(index + 1), index < lastCore ? 'Core' : 'Supplement', description,
 ]);
+const tippingAngle = height => Math.atan((0.50 / 2) / height) * 180 / Math.PI;
 const riderKineticEnergy = speed => 0.5 * 60 * speed ** 2;
 const liftPower = seconds => 1_200 / seconds;
 const floorPressure = areaCm2 => 200 / (areaCm2 / 10_000) / 1_000;
+const nitrogenMolecularSpeed = kelvin => Math.sqrt(3 * 8.314462618 * kelvin / 0.0280134);
+const pumpGasPressure = volumeMl => (500 * 10) / volumeMl;
+const sidewallHeatLoss = thicknessMm => (24 * 5) / thicknessMm;
+const tankWavelength = frequency => 2 / frequency;
 const refractedAngle = degrees => Math.asin(Math.sin(degrees * Math.PI / 180) / 1.33) * 180 / Math.PI;
 const projectedImageDistance = objectDistance => 10 * objectDistance / (objectDistance - 10);
+const vacuumFrequencyThz = wavelengthNm => 3e8 / (wavelengthNm * 1e-9) / 1e12;
+const lanternCurrent = resistance => 6 / resistance;
+const cableHeating = current => 0.5 * current ** 2;
+const generatorEmf = seconds => Number.isInteger(2 * seconds) ? 0 : 4 * Math.sin(2 * Math.PI * seconds);
+const carbon14Remaining = years => 1_600 * 2 ** (-years / 5_730);
+const tracerRemaining = hours => 100 * 2 ** (-hours / 6);
+const relativePointSourceCount = distance => 100 / distance ** 2;
 
 export const physics = [
   {
@@ -128,7 +140,8 @@ export const physics = [
     location: 'Museum loading bay', scene: 'materials',
     brief: 'A tall art crate could tip on a ramp. Move its centre of gravity up or down and find the ramp angle at which its weight passes over its edge.',
     variable: 'Centre-of-gravity height', unit: 'm', range: [0.25, 1.25, 0.75],
-    metric: 'Tipping angle', metricUnit: '°', samples: [45, 26.6, 18.4, 14, 11.3],
+    metric: 'Tipping angle', metricUnit: '°', samples: [0.25, 0.5, 0.75, 1, 1.25].map(tippingAngle),
+    calculate: tippingAngle,
     insight: 'For this rigid crate with a 0.50 m base, tipping starts when the vertical weight line passes outside the base. The model assumes enough grip to prevent sliding.',
     challenge: {prompt: 'What change makes the crate tolerate a steeper ramp?', options: ['Move the heaviest items to the bottom', 'Move the heaviest items to the top', 'Keep the height and label the centre'], answer: 0, explanation: 'A lower centre of gravity keeps the weight line within the base at larger tilt angles.'},
     links: ['P1.5.2', 'P1.3'],
@@ -237,8 +250,9 @@ export const physics = [
     location: 'Indoor air station', scene: 'heat',
     brief: 'A school weather station models nitrogen in a sealed viewing cell. Change the temperature and track the typical molecular speed.',
     variable: 'Gas temperature', unit: 'K', range: [250, 450, 350],
-    metric: 'Root-mean-square molecular speed', metricUnit: 'm/s', samples: [472, 517, 558, 597, 633],
-    insight: 'Higher absolute temperature means more average kinetic energy and greater typical particle speed. The reading is for nitrogen and does not imply that all molecules have the same speed.',
+    metric: 'Root-mean-square molecular speed', metricUnit: 'm/s', samples: [250, 300, 350, 400, 450].map(nitrogenMolecularSpeed),
+    calculate: nitrogenMolecularSpeed,
+    insight: 'Higher absolute temperature means more average kinetic energy and greater typical particle speed. The model treats nitrogen as an ideal gas. Individual molecules have a range of speeds.',
     challenge: {prompt: 'What should the display show as the cell warms?', options: ['Particles become larger', 'The same speed for all temperatures', 'An increase in typical speed'], answer: 2, explanation: 'The nitrogen molecules move faster on average, while the size of each molecule remains unchanged.'},
     links: ['C1.2', 'P2.1.3'],
     objectives: objectives(3, [
@@ -255,7 +269,8 @@ export const physics = [
     location: 'Cycle workshop', scene: 'heat',
     brief: 'The model traps a fixed amount of air inside a capped pump. Slide the piston slowly so temperature stays constant and read the absolute pressure.',
     variable: 'Air volume', unit: 'mL', range: [10, 50, 30],
-    metric: 'Absolute gas pressure', metricUnit: 'kPa', samples: [500, 250, 166.67, 125, 100],
+    metric: 'Absolute gas pressure', metricUnit: 'kPa', samples: [10, 20, 30, 40, 50].map(pumpGasPressure),
+    calculate: pumpGasPressure,
     insight: 'At the same temperature a smaller volume brings the walls closer, so impacts per area become more frequent. A build-up of heat during a real quick stroke can change the result.',
     challenge: {prompt: 'At constant temperature, what happens to pressure from 40 mL to 20 mL?', options: ['It doubles', 'It halves', 'It stays constant'], answer: 0, explanation: 'The model moves from 125 kPa to 250 kPa as the volume halves.'},
     links: ['P1.7', 'C1.1'],
@@ -347,8 +362,9 @@ export const physics = [
     location: 'Community kitchen', scene: 'heat',
     brief: 'A meal tray needs to reach the school warm. Change the insulation thickness and compare the model’s starting heat loss through the sides.',
     variable: 'Insulation thickness', unit: 'mm', range: [5, 25, 15],
-    metric: 'Heat loss through the sides', metricUnit: 'W', samples: [24, 12, 8, 6, 4.8],
-    insight: 'More thickness reduces conduction through the walls. A well-fitting lid reduces convection, and a reflective layer can reduce thermal radiation.',
+    metric: 'Heat loss through the sides', metricUnit: 'W', samples: [5, 10, 15, 20, 25].map(sidewallHeatLoss),
+    calculate: sidewallHeatLoss,
+    insight: 'At the same starting temperature difference, sidewall area and insulation material, doubling the thickness halves the modelled heat loss through the sides. A well-fitting lid reduces convection, and a reflective layer can reduce thermal radiation.',
     challenge: {prompt: 'Which tested thickness cuts sidewall heat loss to one third of the 5 mm result?', options: ['15 mm', '10 mm', '20 mm'], answer: 0, explanation: 'One third of 24 W is 8 W, which the sidewall model gives at 15 mm.'},
     links: ['P2.3.1', 'P2.3.2', 'P2.3.3'],
     objectives: objectives(1, [
@@ -360,7 +376,8 @@ export const physics = [
     location: 'Harbor wave basin', scene: 'waves',
     brief: 'The marina crew tests how waves pass through a model breakwater. Raise the paddle frequency while the simulated wave speed is held at 2 m/s.',
     variable: 'Paddle frequency', unit: 'Hz', range: [1, 5, 3],
-    metric: 'Wavelength', metricUnit: 'm', samples: [2, 1, 0.6667, 0.5, 0.4],
+    metric: 'Wavelength', metricUnit: 'm', samples: [1, 2, 3, 4, 5].map(tankWavelength),
+    calculate: tankWavelength,
     insight: 'At fixed speed, higher frequency gives shorter waves. For the same opening, waves spread more when their wavelength is closer to or greater than the gap width.',
     challenge: {prompt: 'At what tested frequency does the wavelength match a 1 m opening?', options: ['1 Hz', '2 Hz', '5 Hz'], answer: 1, explanation: 'A 2 Hz paddle gives λ = v/f = 2/2 = 1 m.'},
     links: ['P3.4', 'P3.2.2'],
@@ -453,7 +470,8 @@ export const physics = [
     location: 'Museum archive', scene: 'waves',
     brief: 'A conservator compares near-violet and visible lamps. Tune the wavelength to see how quickly the electromagnetic field oscillates.',
     variable: 'Wavelength in vacuum', unit: 'nm', range: [350, 750, 550],
-    metric: 'Frequency', metricUnit: 'THz', samples: [857.14, 666.67, 545.45, 461.54, 400],
+    metric: 'Frequency', metricUnit: 'THz', samples: [350, 450, 550, 650, 750].map(vacuumFrequencyThz),
+    calculate: vacuumFrequencyThz,
     insight: 'Shorter wavelengths have higher frequencies at the same wave speed. The choices in this lab cover ultraviolet and visible light, a small part of the full spectrum.',
     challenge: {prompt: 'Which setting has the highest frequency?', options: ['350 nm', '550 nm', '750 nm'], answer: 0, explanation: 'All settings have the same speed in a vacuum. The shortest wavelength has the highest frequency.'},
     links: ['P3.2.4', 'P5.2.5'],
@@ -601,7 +619,8 @@ export const physics = [
     location: 'Harbor gear room', scene: 'circuit',
     brief: 'A low-voltage lantern has a 6 V battery, a switch and an indicator branch. Change the series resistance and compare its idealised current once the switch closes.',
     variable: 'Branch resistance', unit: 'Ω', range: [10, 50, 30],
-    metric: 'Branch current', metricUnit: 'A', samples: [0.6, 0.3, 0.2, 0.15, 0.12],
+    metric: 'Branch current', metricUnit: 'A', samples: [10, 20, 30, 40, 50].map(lanternCurrent),
+    calculate: lanternCurrent,
     insight: 'The ideal test branch conducts only with the switch closed. Higher resistance gives lower current at a fixed supply voltage.',
     challenge: {prompt: 'What tested branch resistance gives a current of 0.2 A?', options: ['10 Ω', '20 Ω', '30 Ω'], answer: 2, explanation: 'The branch current is 6 V ÷ 30 Ω = 0.2 A.'},
     links: ['P4.2.4', 'P4.3.2'],
@@ -635,7 +654,8 @@ export const physics = [
     location: 'Market safety exhibit', scene: 'circuit',
     brief: 'A demonstration models a kiosk extension lead rated to carry 5 A. Increase the model load and compare the heat released per second by its 0.5 Ω cable.',
     variable: 'Cable current', unit: 'A', range: [0, 8, 4],
-    metric: 'Electrical heating in the cable', metricUnit: 'W', samples: [0, 2, 8, 18, 32],
+    metric: 'Electrical heating in the cable', metricUnit: 'W', samples: [0, 2, 4, 6, 8].map(cableHeating),
+    calculate: cableHeating,
     insight: 'Cable heating rises rapidly with current. A suitably rated protective device opens the circuit if the current exceeds the permitted level for long enough.',
     challenge: {prompt: 'Which tested load is the smallest one above the lead’s 5 A rating?', options: ['4 A', '6 A', '8 A'], answer: 1, explanation: 'The first tested value greater than 5 A is 6 A, with 18 W of model heating.'},
     links: ['P4.2.5', 'P2.3.1'],
@@ -665,8 +685,9 @@ export const physics = [
     location: 'Harbor turbine exhibit', scene: 'circuit',
     brief: 'An exhibit generator turns its coil once per second. Step through one turn and compare the output voltage at different points in the cycle.',
     variable: 'Time in the turn', unit: 's', range: [0, 1, 0.5],
-    metric: 'Instantaneous e.m.f.', metricUnit: 'V', samples: [0, 4, 0, -4, 0],
-    insight: 'The sign changes as the rotating coil cuts through the field in the opposite direction. Slip rings and brushes carry the alternating output to a stationary circuit.',
+    metric: 'Instantaneous e.m.f.', metricUnit: 'V', samples: [0, 0.25, 0.5, 0.75, 1].map(generatorEmf),
+    calculate: generatorEmf,
+    insight: 'A coil turning at constant speed in a uniform field produces a sinusoidal output that reverses polarity each half-turn. Slip rings and brushes carry that alternating output to a stationary circuit.',
     challenge: {prompt: 'What is the model e.m.f. half a turn after the +4 V peak?', options: ['−4 V', '+8 V', '+4 V'], answer: 0, explanation: 'After half a turn the e.m.f. has the same magnitude and the opposite polarity.'},
     links: ['P4.5.1', 'P1.6.3'],
     objectives: objectives(0, [
@@ -787,7 +808,8 @@ export const physics = [
     location: 'Museum archaeology gallery', scene: 'atom',
     brief: 'The display tracks a small model sample of carbon-14. Move the exhibit clock forward and compare its expected remaining unstable nuclei.',
     variable: 'Elapsed model time', unit: 'years', range: [0, 22920, 11460],
-    metric: 'Expected undecayed nuclei', metricUnit: 'nuclei', samples: [1600, 800, 400, 200, 100],
+    metric: 'Expected undecayed nuclei', metricUnit: 'nuclei', samples: [0, 5_730, 11_460, 17_190, 22_920].map(carbon14Remaining),
+    calculate: carbon14Remaining,
     insight: 'A single nucleus can decay at any time. A large group follows a predictable average trend. Carbon-14 undergoes beta-minus decay and changes into nitrogen-14.',
     challenge: {prompt: 'Can the display tell when a particular carbon-14 nucleus will decay?', options: ['Yes, at 5730 years', 'Yes, at the sample’s midpoint', 'No, individual events are random'], answer: 2, explanation: 'The curve describes the ensemble. The exact decay time of any one nucleus is unpredictable.'},
     links: ['P5.2.4', 'P5.1'],
@@ -803,7 +825,8 @@ export const physics = [
     location: 'Medical imaging exhibit', scene: 'atom',
     brief: 'The exhibit simulates a tracer with a 6-hour half-life. Move the timeline and track the share remaining from the original quantity.',
     variable: 'Elapsed time', unit: 'h', range: [0, 24, 12],
-    metric: 'Undecayed share', metricUnit: '%', samples: [100, 50, 25, 12.5, 6.25],
+    metric: 'Undecayed share', metricUnit: '%', samples: [0, 6, 12, 18, 24].map(tracerRemaining),
+    calculate: tracerRemaining,
     insight: 'Each equal six-hour interval removes half of what remains at the start of that interval. The model shows the average fraction for a large sample.',
     challenge: {prompt: 'What percentage remains after 18 hours?', options: ['12.5%', '50%', '25%'], answer: 0, explanation: 'Eighteen hours is three half-lives, giving 100% × ½ × ½ × ½ = 12.5%.'},
     links: ['P5.2.3', 'P5.2.5'],
@@ -816,7 +839,8 @@ export const physics = [
     location: 'Medical imaging exhibit', scene: 'atom',
     brief: 'A museum simulator models a compact source. Move the model detector farther from the fixed source and record its relative count rate.',
     variable: 'Distance to model source', unit: 'm', range: [1, 5, 3],
-    metric: 'Relative count rate', metricUnit: '%', samples: [100, 25, 11.11, 6.25, 4],
+    metric: 'Relative count rate', metricUnit: '%', samples: [1, 2, 3, 4, 5].map(relativePointSourceCount),
+    calculate: relativePointSourceCount,
     insight: 'Radiation from a compact source spreads over a wider area at larger distances. This unobstructed point-source model leaves out shielding and background.',
     challenge: {prompt: 'What happens to the model reading when you go from 1 m to 2 m?', options: ['It falls to 50%', 'It falls to 25%', 'It rises to 200%'], answer: 1, explanation: 'The radiation spreads over four times the area at twice the distance.'},
     links: ['P5.2.2', 'P3.3'],

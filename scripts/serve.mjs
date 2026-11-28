@@ -1,6 +1,8 @@
 import { createServer } from 'node:http';
-import { createReadStream } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { createReadStream, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -25,6 +27,28 @@ const types = {
   '.webp': 'image/webp', '.txt': 'text/plain; charset=utf-8'
 };
 
+let legacyBuild;
+function legacyBuildRoot() {
+  if (legacyBuild) return legacyBuild;
+  const source = mkdtempSync(resolve(tmpdir(), 'fieldwork-c921a82-'));
+  try {
+    const archive = execFileSync('git', ['archive', 'c921a82281e00897d60f51082b8f2159ccb8f0f4'], { cwd: project, maxBuffer: 32 * 1024 * 1024 });
+    execFileSync('tar', ['-x', '-C', source], { input: archive });
+    if (!readFileSync(resolve(source, 'package-lock.json')).equals(readFileSync(resolve(project, 'package-lock.json')))) {
+      throw new Error('The mixed-build fixture needs the dependencies from c921a82.');
+    }
+    symlinkSync(resolve(project, 'node_modules'), resolve(source, 'node_modules'), 'dir');
+    execFileSync(process.execPath, ['scripts/build.mjs'], { cwd: source });
+    process.once('exit', () => rmSync(source, { recursive: true, force: true }));
+    legacyBuild = resolve(source, 'dist');
+    return legacyBuild;
+  } catch (error) {
+    rmSync(source, { recursive: true, force: true });
+    console.error('Could not build the c921a82 QA fixture:', error.message);
+    throw error;
+  }
+}
+
 createServer(async (req, res) => {
   try {
     if (!['GET', 'HEAD'].includes(req.method)) {
@@ -32,6 +56,8 @@ createServer(async (req, res) => {
       return;
     }
     let path = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+    const qaBuild = qa && path.match(/^\/__qa\/builds\/(c921a82|candidate)(\/.*)$/);
+    if (qaBuild) path = qaBuild[2];
     if (path === '/') path = '/index.html';
     if (qa && path === '/__qa/no-webgl') {
       const source = await readFile(resolve(root, 'index.html'), 'utf8');
@@ -51,13 +77,14 @@ createServer(async (req, res) => {
       res.end(req.method === 'HEAD' ? undefined : html);
       return;
     }
-    const qaFile = qa && qaPaths[path];
+    const qaFile = qa && !qaBuild && qaPaths[path];
     if (!qaFile && (!/^\/(?:index\.html|[\w-]+\.(?:js|css)|(?:assets|curriculum|vendor)\/[\w./-]+)$/.test(path) || path.includes('..'))) {
       res.writeHead(404).end('Not found');
       return;
     }
-    let file = resolve(root, qaFile || '.' + path);
-    if (!built && path.startsWith('/vendor/')) {
+    const fileRoot = !qaBuild ? root : qaBuild[1] === 'c921a82' ? legacyBuildRoot() : resolve(project, 'dist');
+    let file = resolve(fileRoot, qaFile || '.' + path);
+    if (!built && !qaBuild && path.startsWith('/vendor/')) {
       const three = resolve(project, 'node_modules/three');
       file = path.startsWith('/vendor/addons/')
         ? resolve(three, 'examples/jsm', path.slice('/vendor/addons/'.length))

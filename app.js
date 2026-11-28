@@ -680,12 +680,19 @@ function render() {
         isCurrent: () => token === routeToken,
         motionReduced,
         onProgress(progress, completed) {
-          const alreadyComplete = store.objectiveProgress[objective.key]?.done;
-          save({ type: 'objective', key: objective.key, progress });
-          if (completed && !alreadyComplete) {
+          let alreadyComplete = store.objectiveProgress[objective.key]?.done;
+          let accepted = true;
+          const change = { type: 'objective', key: objective.key, progress };
+          if (progress.practical?.expectedRuns) {
+            const result = persistence.writeChecked(change);
+            store = result.state;
+            ({ accepted, alreadyComplete } = result);
+          } else save(change);
+          if (completed && accepted && !alreadyComplete) {
             updateRank();
             xpSound();
           }
+          return { progress: store.objectiveProgress[objective.key], accepted };
         }
       });
     } else {

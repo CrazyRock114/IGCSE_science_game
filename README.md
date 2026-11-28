@@ -15,6 +15,10 @@ Open [FIELDWORK](http://127.0.0.1:4173/). Use **Journal** to search for a topic 
 
 A current browser with WebGL 2 enables the 3D view. Select setups using the sample ports or the setup menu. Drag the marked 3D handle or adjust the keyboard-accessible slider to operate the apparatus. The slider, readings and grading also work if WebGL 2 is unavailable. Run `npm run build` to produce a self-contained static site in `dist/`, then `npm run preview` to serve it.
 
+After a formula-driven mission is corrected, its recorded settings stay in the browser save. On opening the mission, the table and plot recalculate the outputs from those settings using the corrected formula. Mission completion and XP are preserved. Reference-data missions keep their recorded observations and continue to interpolate between reference samples.
+
+Titration saves each run with its apparatus state, readings and inclusion in the mean. It checks against the latest saved evidence before crediting a submission. If another tab has already changed that evidence, the latest saved run is shown for review. Events from an older build can still update runs without a revision. A complete run accepted by the current build remains intact during replay even if a later legacy edit sorts earlier in the same clock tick. After an objective has a revised run, new completion requires a checked submission. Valid older evidence can be used and receives revisions on successful submission. If an older record disagrees with the saved apparatus state, the learner is asked to record it again before using it in a mean. Previously earned completion and XP are preserved.
+
 ## Curriculum scope
 
 FIELDWORK uses Cambridge IGCSE Co-ordinated Sciences (Double Award), syllabus 0654 for examination in 2025–2027. Every numbered content objective is mapped by subsection and tier. The in-game Journal can filter by subject or search for concepts and syllabus codes. [Official syllabus](https://www.cambridgeinternational.org/Images/664572-2025-2027-syllabus.pdf)
@@ -35,6 +39,8 @@ Model references include [diffusion and osmosis](https://openstax.org/books/biol
 `npm run check` tests all 650 objective routes, authored setups, scene states, evidence gates, grading and save round trips. It also runs the checks for the original 142 missions and capstone.
 
 For a complete WebGL and interface test, start the isolated QA preview with `PORT=4174 npm run dev -- --qa`. Open the [browser verification page](http://127.0.0.1:4174/__qa/objectives) and select **Verify all objective experiments**. It opens every Journal route, checks the rendered scene, moves the controls through an intermediate position, rejects an uncalibrated run, and runs each setup at the reference mark, tests evidence submission and checks that progress persists after reloading. The QA server uses a separate local origin and does not serve its test routes in the production build.
+
+Run `npm run build` before the [practical checks](http://127.0.0.1:4174/__qa/round2). The mixed-version cases use that build and a temporary build of Git commit `c921a82` on the same QA origin. Run the three suites one at a time. [Mission and save checks](http://127.0.0.1:4174/__qa/round1) · [Reservoir checks](http://127.0.0.1:4174/__qa/round3)
 
 ## Implementation
 

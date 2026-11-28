@@ -142,12 +142,17 @@ function trialsMarkup(trials, state) {
   return `<table class="titration-table">
     <thead><tr><th scope="col">Run</th><th scope="col">Initial<br>mL</th><th scope="col">Final<br>mL</th><th scope="col">Titre<br>mL</th><th scope="col">Use</th></tr></thead>
     <tbody>${trials.map((trial, index) => {
-      const record = state.runs[index].record;
+      const { record, selected } = state.runs[index];
       return `<tr><th scope="row">${trial.name}${record ? `<small>${appearances[record.appearance].label}</small>` : ''}</th>
         ${record ? `<td>${volume(record.initial)}</td><td>${volume(record.final)}</td><td>${volume(record.final - record.initial)}</td>` : '<td>—</td><td>—</td><td>—</td>'}
-        <td><input type="checkbox" id="titration-use-${index}" aria-label="Include ${trial.name}" ${state.included.includes(index) ? 'checked' : ''} ${record ? '' : 'disabled'}></td></tr>`;
+        <td><input type="checkbox" id="titration-use-${index}" aria-label="Include ${trial.name}" ${selected ? 'checked' : ''} ${record ? '' : 'disabled'}></td></tr>`;
     }).join('')}</tbody>
   </table>`;
+}
+
+function trialsFor(objective, guided) {
+  const trials = titrationTrials[guided ? 'guided' : 'independent'];
+  return objective.number === '1' ? [trials[1]] : trials;
 }
 
 export const titrationPractical = {
@@ -155,12 +160,22 @@ export const titrationPractical = {
     const setupActivity = objective.number === '1';
     const count = setupActivity ? 1 : titrationTrials.guided.length;
     const runs = Object.fromEntries(Array.from({ length: count }, (_, index) => [index, emptyRun()]));
-    return { ready: !setupActivity, kit: ['', '', ''], active: 0, runs, included: [], mean: '', feedback: null };
+    return { ready: !setupActivity, kit: ['', '', ''], active: 0, runs, mean: '', feedback: null };
+  },
+  restoreState(state, objective, guided) {
+    const runs = Object.fromEntries(trialsFor(objective, guided).map((trial, index) => {
+      const run = state.runs[index];
+      const observed = run.record && readTitration(trial, run).record;
+      const record = observed && Object.keys(observed).every(key => observed[key] === run.record[key]) ? run.record : null;
+      const selected = Boolean(record && (run.selected ?? state.included?.includes(index)));
+      const needsRecord = Boolean(!record && (run.needsRecord || run.record));
+      return [index, { ...run, record, selected, needsRecord }];
+    }));
+    return { ...state, runs, feedback: Object.values(runs).some(run => run.needsRecord) ? null : state.feedback };
   },
   render(root, { state, objective, guided, update, scene }) {
     const setupActivity = objective.number === '1';
-    const allTrials = titrationTrials[guided ? 'guided' : 'independent'];
-    const trials = setupActivity ? [allTrials[1]] : allTrials;
+    const trials = trialsFor(objective, guided);
     const index = state.active;
     const trial = trials[index];
     const run = state.runs[index];
@@ -191,7 +206,7 @@ export const titrationPractical = {
           <label>Final burette reading (mL)<input class="objective-select" id="titration-final" type="text" inputmode="decimal" value="${clean(run.final)}" maxlength="5"></label>
         </div>
         <button class="button" type="button" id="titration-record">Record run</button>
-        <p id="titration-reading-feedback" role="status" tabindex="-1">${run.record ? setupActivity ? `Burette readings recorded. Your titre is ${volume(run.record.final - run.record.initial)} mL.` : `${trial.name} recorded. Choose another run or analyse your records.` : ''}</p>
+        <p id="titration-reading-feedback" role="status" tabindex="-1">${run.record ? setupActivity ? `Burette readings recorded. Your titre is ${volume(run.record.final - run.record.initial)} mL.` : `${trial.name} recorded. Choose another run or analyse your records.` : run.needsRecord ? 'Check the current burette readings and record this trial again.' : ''}</p>
       </section>
       ${setupActivity ? '' : `<section aria-labelledby="titration-analysis">
         <h2 id="titration-analysis">Analyse your titres</h2>
@@ -208,16 +223,18 @@ export const titrationPractical = {
     const find = id => root.querySelector(`#titration-${id}`);
     const listen = (id, type, handler) => find(id)?.addEventListener(type, handler);
     function save(patch, options) {
-      state = { ...state, feedback: null, ...patch };
-      update(state, options);
+      const outcome = update({ ...state, feedback: null, ...patch }, options);
+      state = outcome.draft;
+      return outcome.accepted;
+    }
+    function updateRun(trialIndex, run, options) {
+      return save({ runs: { ...state.runs, [trialIndex]: run } }, { ...options, trialIndex });
     }
     function changeRun(patch, options) {
-      const runs = { ...state.runs, [index]: { ...state.runs[index], ...patch } };
-      save({ runs }, options);
+      return updateRun(index, { ...state.runs[index], ...patch }, options);
     }
     function changeDose(dose, focus) {
-      const runs = { ...state.runs, [index]: { ...emptyRun(), dose, initial: state.runs[index].initial } };
-      save({ runs, included: state.included.filter(value => value !== index) }, { focus: `titration-${focus}` });
+      updateRun(index, { ...emptyRun(), dose, initial: state.runs[index].initial, selected: false }, { focus: `titration-${focus}` });
     }
 
     if (!state.ready) {
@@ -246,7 +263,14 @@ export const titrationPractical = {
     listen('drop', 'click', () => changeDose(run.dose + drop, 'swirl'));
     listen('refill', 'click', () => changeDose(0, 'bulk'));
     listen('swirl', 'click', () => changeRun({ swirled: true }, { focus: titrationAppearance(trial, { ...run, swirled: true }) === 'clear' && !replay ? 'titration-drop' : 'titration-initial' }));
-    for (const field of ['initial', 'final']) listen(field, 'input', event => changeRun({ [field]: event.target.value }, { redraw: false }));
+    for (const field of ['initial', 'final']) listen(field, 'input', ({ target }) => {
+      const { value, selectionStart, selectionEnd } = target;
+      const previous = state.runs[index];
+      if (value === previous[field]) return;
+      const redraw = Boolean(previous.record);
+      const accepted = changeRun({ [field]: value, record: null, selected: false, needsRecord: redraw || previous.needsRecord }, { redraw });
+      if (accepted && redraw) find(field).setSelectionRange(selectionStart, selectionEnd);
+    });
     listen('record', 'click', () => {
       const result = readTitration(trial, state.runs[index]);
       if (result.status !== 'recorded') {
@@ -258,25 +282,26 @@ export const titrationPractical = {
         return;
       }
       const nextRun = trials.findIndex((_, i) => i !== index && !state.runs[i].record);
-      changeRun({ record: result.record }, {
+      changeRun({ record: result.record, needsRecord: false }, {
         complete: setupActivity,
         focus: setupActivity ? 'titration-reading-feedback' : nextRun === -1 ? 'titration-mean' : 'titration-trial'
       });
     });
     trials.forEach((_, i) => listen(`use-${i}`, 'change', event => {
-      const included = event.target.checked ? [...state.included, i] : state.included.filter(value => value !== i);
-      save({ included });
+      updateRun(i, { ...state.runs[i], selected: event.target.checked });
     }));
     listen('mean', 'input', event => {
       find('feedback').replaceChildren();
       save({ mean: event.target.value }, { redraw: false });
     });
     listen('submit', 'click', () => {
-      const feedback = checkTitration(trials.map((_, i) => state.runs[i].record), state.included, state.mean);
+      const runs = trials.map((_, i) => state.runs[i]);
+      const included = runs.flatMap(({ selected }, index) => selected ? [index] : []);
+      const feedback = checkTitration(runs.map(run => run.record), included, state.mean);
+      if (!save({ feedback }, { complete: feedback.status === 'complete', redraw: false, checkTrials: true })) return;
       const status = find('feedback');
       status.innerHTML = feedbackMarkup(feedback);
       status.focus({ preventScroll: true });
-      save({ feedback }, { complete: feedback.status === 'complete', redraw: false });
     });
 
     scene.present({
